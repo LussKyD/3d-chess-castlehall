@@ -1,15 +1,15 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import Board from './Board'
 
-/* 🔥 Small torchlight component for subtle flicker */
-function Torch({ position, color = '#ffb347', intensity = 1.5 }) {
+/* 🔥 Torchlight flicker */
+function Torch({ position, color = '#ffb347', intensity = 1.8 }) {
   const light = useRef()
   useFrame(({ clock }) => {
     if (light.current) {
       const t = clock.elapsedTime
-      light.current.intensity = intensity + Math.sin(t * 10 + position[0]) * 0.2
+      light.current.intensity = intensity + Math.sin(t * 8 + position[0]) * 0.3
     }
   })
   return (
@@ -18,121 +18,177 @@ function Torch({ position, color = '#ffb347', intensity = 1.5 }) {
       position={position}
       color={color}
       intensity={intensity}
-      distance={6}
+      distance={7}
       castShadow
     />
   )
 }
 
-/* 👑 Simple crown prop */
+/* 👑 Crown prop */
 function Crown({ position }) {
   return (
     <group position={position}>
       <mesh castShadow>
-        <torusGeometry args={[0.4, 0.1, 12, 24]} />
+        <torusGeometry args={[0.5, 0.12, 16, 32]} />
         <meshStandardMaterial color="#ffd700" metalness={1} roughness={0.1} />
       </mesh>
-      <mesh position={[0, 0.3, 0]} castShadow>
-        <coneGeometry args={[0.08, 0.3, 8]} />
+      <mesh position={[0, 0.35, 0]} castShadow>
+        <coneGeometry args={[0.12, 0.35, 10]} />
         <meshStandardMaterial color="#fff7c0" metalness={0.9} roughness={0.2} />
       </mesh>
     </group>
   )
 }
 
-export default function CastleHall() {
+/* 🪑 Thrones with Kings/Queens */
+function Throne({ position, color = '#ffd700', occupant = 'King' }) {
   return (
-    <Canvas shadows camera={{ position: [10, 12, 10], fov: 45 }}>
-      {/* 🌤️ Ambient + main lighting */}
+    <group position={position}>
+      {/* Base seat */}
+      <mesh castShadow>
+        <boxGeometry args={[1.2, 0.4, 1.2]} />
+        <meshStandardMaterial color={color} metalness={0.9} roughness={0.2} />
+      </mesh>
+      {/* Backrest */}
+      <mesh position={[0, 1, -0.3]} castShadow>
+        <boxGeometry args={[1, 2, 0.4]} />
+        <meshStandardMaterial color={color} metalness={0.9} roughness={0.3} />
+      </mesh>
+      {/* Crown emblem */}
+      <Crown position={[0, 1.8, -0.2]} />
+      {/* Placeholder for figure */}
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshStandardMaterial
+          color={occupant === 'King' ? '#f9e76c' : '#f4c2ff'}
+          metalness={0.7}
+          roughness={0.3}
+        />
+      </mesh>
+    </group>
+  )
+}
+
+/* 🎨 Theme system */
+const THEMES = {
+  gold: { wall: '#d9b14a', floor: '#e5c78a', sky: '#b69548' },
+  black: { wall: '#222', floor: '#444', sky: '#555' },
+  purple: { wall: '#4b0082', floor: '#5c0a99', sky: '#3d0066' },
+  white: { wall: '#f5f5f5', floor: '#ddd', sky: '#ccc' },
+}
+
+export default function CastleHall() {
+  const [theme, setTheme] = useState('gold')
+
+  /* Switch theme automatically every 20 seconds */
+  useEffect(() => {
+    const keys = Object.keys(THEMES)
+    let index = 0
+    const id = setInterval(() => {
+      index = (index + 1) % keys.length
+      setTheme(keys[index])
+    }, 20000)
+    return () => clearInterval(id)
+  }, [])
+
+  const colors = THEMES[theme]
+
+  return (
+    <Canvas shadows camera={{ position: [12, 15, 12], fov: 45 }}>
+      {/* Lighting */}
       <ambientLight intensity={0.35} />
       <directionalLight
-        position={[12, 20, 10]}
-        intensity={1.4}
+        position={[15, 25, 10]}
+        intensity={1.6}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={4096}
+        shadow-mapSize-height={4096}
       />
 
-      {/* Sky dome / exterior glow */}
-      <mesh scale={[60, 60, 60]}>
+      {/* Sky dome */}
+      <mesh scale={[120, 120, 120]}>
         <sphereGeometry args={[1, 64, 64]} />
-        <meshBasicMaterial color="#b69548" side={1} />
+        <meshBasicMaterial color={colors.sky} side={1} />
       </mesh>
 
-      {/* 🏰 Golden Castle Structure */}
+      {/* Structure */}
       <group>
         {/* Floor */}
         <mesh receiveShadow rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}>
-          <planeGeometry args={[36, 36]} />
-          <meshStandardMaterial color="#e5c78a" metalness={0.6} roughness={0.4} />
+          <planeGeometry args={[60, 60]} />
+          <meshStandardMaterial color={colors.floor} metalness={0.6} roughness={0.4} />
         </mesh>
 
         {/* Walls */}
         {[
-          { pos: [0, 8, -18], rot: [0, 0, 0], size: [36, 16, 0.6] }, // back
-          { pos: [0, 8, 18], rot: [0, 0, 0], size: [36, 16, 0.6] }, // front
-          { pos: [-18, 8, 0], rot: [0, 0, 0], size: [0.6, 16, 36] }, // left
-          { pos: [18, 8, 0], rot: [0, 0, 0], size: [0.6, 16, 36] }  // right
+          { pos: [0, 10, -30], size: [60, 20, 0.6] },
+          { pos: [0, 10, 30], size: [60, 20, 0.6] },
+          { pos: [-30, 10, 0], size: [0.6, 20, 60] },
+          { pos: [30, 10, 0], size: [0.6, 20, 60] },
         ].map((w, i) => (
-          <mesh key={i} position={w.pos} receiveShadow>
+          <mesh key={`wall-${i}`} position={w.pos} receiveShadow>
             <boxGeometry args={w.size} />
-            <meshStandardMaterial color="#d9b14a" metalness={0.8} roughness={0.3} />
+            <meshStandardMaterial color={colors.wall} metalness={0.8} roughness={0.3} />
           </mesh>
         ))}
 
         {/* Ceiling */}
-        <mesh position={[0, 16, 0]}>
-          <boxGeometry args={[36, 0.5, 36]} />
-          <meshStandardMaterial color="#f6d870" metalness={0.8} roughness={0.2} />
+        <mesh position={[0, 20, 0]}>
+          <boxGeometry args={[60, 0.6, 60]} />
+          <meshStandardMaterial color={colors.wall} metalness={0.8} roughness={0.3} />
         </mesh>
 
-        {/* Pillars (moved further out) */}
-        {[-14, -7, 7, 14].map((x, i) =>
-          [-14, -7, 7, 14].map((z, j) => (
-            <mesh key={`pillar-${i}-${j}`} position={[x, 8, z]} castShadow>
-              <cylinderGeometry args={[0.35, 0.4, 16, 20]} />
-              <meshStandardMaterial color="#e8ca74" metalness={0.8} roughness={0.2} />
-            </mesh>
-          ))
-        )}
-
-        {/* Arched windows */}
-        {[-12, 12].map((z, i) =>
-          [-8, 0, 8].map((x, j) => (
-            <mesh key={`window-${i}-${j}`} position={[x, 8, z]}>
-              <torusGeometry args={[1.5, 0.1, 16, 32, Math.PI]} />
+        {/* Windows */}
+        {[-20, 0, 20].map((x, i) =>
+          [-20, 0, 20].map((z, j) => (
+            <mesh key={`window-${i}-${j}`} position={[x, 12, z]}>
+              <torusGeometry args={[2, 0.15, 16, 32, Math.PI]} />
               <meshStandardMaterial color="#fff5b3" metalness={0.7} roughness={0.3} />
             </mesh>
           ))
         )}
 
-        {/* Torches with flicker light */}
-        {[[-16, 3, 0], [16, 3, 0], [0, 3, -16], [0, 3, 16]].map((p, i) => (
+        {/* Torches */}
+        {[[-25, 3, 0], [25, 3, 0], [0, 3, -25], [0, 3, 25]].map((p, i) => (
           <Torch key={`torch-${i}`} position={p} />
         ))}
 
-        {/* Crown decorations */}
+        {/* Pillars */}
+        {[-25, -12, 12, 25].map((x, i) =>
+          [-25, -12, 12, 25].map((z, j) => (
+            <mesh key={`pillar-${i}-${j}`} position={[x, 10, z]} castShadow>
+              <cylinderGeometry args={[0.5, 0.6, 20, 20]} />
+              <meshStandardMaterial color={colors.wall} metalness={0.8} roughness={0.2} />
+            </mesh>
+          ))
+        )}
+
+        {/* Thrones */}
+        <Throne position={[0, 0, -20]} occupant="King" />
+        <Throne position={[0, 0, 20]} occupant="Queen" />
+
+        {/* Crowns */}
         {[
-          [-10, 0, -10],
-          [10, 0, -10],
-          [-10, 0, 10],
-          [10, 0, 10]
-        ].map((pos, i) => (
-          <Crown key={`crown-${i}`} position={[pos[0], 0.4, pos[2]]} />
+          [-15, 0, -15],
+          [15, 0, -15],
+          [-15, 0, 15],
+          [15, 0, 15],
+        ].map((p, i) => (
+          <Crown key={`crown-${i}`} position={[p[0], 0.5, p[2]]} />
         ))}
       </group>
 
-      {/* ♟️ Chess Board */}
+      {/* Board */}
       <Board />
 
-      {/* 🎥 Camera Controls */}
+      {/* Camera Controls */}
       <OrbitControls
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
+        enablePan
+        enableZoom
+        enableRotate
         minDistance={7}
-        maxDistance={30}
-        maxPolarAngle={Math.PI / 2.15}
+        maxDistance={80}   // ← zoomed out farther to see sky dome
+        maxPolarAngle={Math.PI / 2.1}
       />
     </Canvas>
   )
