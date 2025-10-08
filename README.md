@@ -1,6 +1,6 @@
 # 3D Chess — Castle Hall (MVP)
 
-This is a runnable starter project (Vite + React + react-three-fiber) for the 3D Chess — Castle Hall game.
+A runnable starter project (Vite + React + react-three-fiber) for the 3D Chess — Castle Hall game.
 
 ## What you get
 - A Vite React app with a 3D scene (board + kings & queens that watch the camera)
@@ -28,17 +28,15 @@ npm run dev
 - The app is intentionally minimal to reduce friction: it should launch and show the board and two large king/queen statues that track camera movement.
 
 ---
-Generated automatically by the assistant. If you want, I can now:
+Next Steps:
 - add chess.js and click-to-move interaction,
 - replace placeholder geometry with GLTF piece models,
 - add lighting, pillars, banners, or environment HDRI,
 - prepare a build and assets pipeline.
-
-Tell me which of the above you'd like next and I will add it without touching this working code.
 
 
 ## GitHub Pages (automatic deploy via GitHub Actions)
 
 This project includes a GitHub Actions workflow that will build the Vite app and publish the `dist/` to the `gh-pages` branch automatically when you push to `main`.
 
-If you prefer not to use the terminal, upload the project to GitHub using the web UI (see instructions below) and the workflow will run automatically.
+
