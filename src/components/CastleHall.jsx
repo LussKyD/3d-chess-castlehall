@@ -1,102 +1,86 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, PerspectiveCamera, Environment, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-const CastleHall = () => {
-  const mountRef = useRef(null);
+export default function CastleHall() {
+  const lightRef = useRef();
 
-  useEffect(() => {
-    const mount = mountRef.current;
+  return (
+    <Canvas shadows gl={{ antialias: true }} style={{ height: '100vh', background: '#0d0b0b' }}>
+      {/* Camera */}
+      <PerspectiveCamera makeDefault position={[0, 2, 10]} fov={50} />
 
-    // === Scene Setup ===
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111);
+      {/* Lighting */}
+      <ambientLight intensity={0.3} />
+      <spotLight
+        ref={lightRef}
+        position={[0, 8, 4]}
+        intensity={2.5}
+        penumbra={0.8}
+        castShadow
+        angle={0.4}
+        color={'#ffcc88'}
+      />
+      <pointLight position={[0, 2, -2]} intensity={0.5} />
 
-    const camera = new THREE.PerspectiveCamera(75, mount.clientWidth / mount.clientHeight, 0.1, 1000);
-    camera.position.set(0, 5, 15);
+      {/* Floor */}
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+        <planeGeometry args={[40, 40]} />
+        <meshStandardMaterial color="#e5e0d8" roughness={0.4} metalness={0.1} />
+      </mesh>
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(mount.clientWidth, mount.clientHeight);
-    mount.appendChild(renderer.domElement);
+      {/* Back wall and door */}
+      <group position={[0, 2, -8]}>
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[20, 10, 0.5]} />
+          <meshStandardMaterial color="#2b1e0f" />
+        </mesh>
+        <mesh position={[0, -0.5, 0.26]}>
+          <boxGeometry args={[3, 5, 0.2]} />
+          <meshStandardMaterial color="#c49a6c" emissive="#c49a6c" emissiveIntensity={0.4} />
+        </mesh>
+        <pointLight position={[0, 0, 1]} intensity={1.2} color="#ffd580" />
+      </group>
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+      {/* Castle pillars */}
+      {[-8, -4, 0, 4, 8].map((x, i) => (
+        <group key={i}>
+          <mesh position={[x, 2.5, -8]} castShadow>
+            <cylinderGeometry args={[0.4, 0.4, 5, 32]} />
+            <meshStandardMaterial color="#3a2b1a" metalness={0.5} roughness={0.6} />
+          </mesh>
+          <mesh position={[x, 2.5, 8]} castShadow>
+            <cylinderGeometry args={[0.4, 0.4, 5, 32]} />
+            <meshStandardMaterial color="#3a2b1a" metalness={0.5} roughness={0.6} />
+          </mesh>
+        </group>
+      ))}
 
-    // === Lights ===
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+      {/* Chess pieces (placeholder shapes for now) */}
+      <group position={[0, 0.5, 0]}>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <mesh key={i} position={[i - 3.5, 0.5, 2]} castShadow>
+            <cylinderGeometry args={[0.2, 0.2, 0.6, 16]} />
+            <meshStandardMaterial color="#111" />
+          </mesh>
+        ))}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <mesh key={i} position={[i - 3.5, 0.5, -2]} castShadow>
+            <cylinderGeometry args={[0.2, 0.2, 0.6, 16]} />
+            <meshStandardMaterial color="#eee" />
+          </mesh>
+        ))}
+      </group>
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(10, 20, 10);
-    scene.add(directionalLight);
+      {/* Environment reflections */}
+      <Environment preset="warehouse" />
 
-    // === Floor ===
-    const floorGeometry = new THREE.PlaneGeometry(100, 100);
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    scene.add(floor);
-
-    // === Walls (Mirrors) ===
-    const mirrorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x888888,
-      metalness: 0.8,
-      roughness: 0.2
-    });
-
-    const wallGeometry = new THREE.BoxGeometry(100, 20, 1);
-    const wallBack = new THREE.Mesh(wallGeometry, mirrorMaterial);
-    wallBack.position.set(0, 10, -50);
-    scene.add(wallBack);
-
-    const wallFront = new THREE.Mesh(wallGeometry, mirrorMaterial);
-    wallFront.position.set(0, 10, 50);
-    scene.add(wallFront);
-
-    const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(1, 20, 100), mirrorMaterial);
-    wallLeft.position.set(-50, 10, 0);
-    scene.add(wallLeft);
-
-    const wallRight = new THREE.Mesh(new THREE.BoxGeometry(1, 20, 100), mirrorMaterial);
-    wallRight.position.set(50, 10, 0);
-    scene.add(wallRight);
-
-    // === Guards ===
-    const guardGeometry = new THREE.CylinderGeometry(0.5, 0.5, 3, 32);
-    const guardMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
-
-    // Inside guards
-    for (let i = 0; i < 5; i++) {
-      const guard = new THREE.Mesh(guardGeometry, guardMaterial);
-      guard.position.set(-10 + i * 5, 1.5, -10);
-      scene.add(guard);
-    }
-
-    // Outside guards
-    for (let i = 0; i < 5; i++) {
-      const guard = new THREE.Mesh(guardGeometry, guardMaterial);
-      guard.position.set(-10 + i * 5, 1.5, 20);
-      scene.add(guard);
-    }
-
-    // === Animate ===
-    const animate = () => {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    };
-
-    animate();
-
-    // === Cleanup ===
-    return () => {
-      mount.removeChild(renderer.domElement);
-      renderer.dispose();
-    };
-  }, []);
-
-  return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
-};
-
-export default CastleHall;
+      {/* Controls */}
+      <OrbitControls enablePan={false} enableZoom={true} maxPolarAngle={Math.PI / 2.2} />
+      <Html position={[0, 0, 0]} center style={{ color: '#fff' }}>
+        <div style={{ fontFamily: 'serif', textAlign: 'center' }}>♔ The Castle Hall ♕</div>
+      </Html>
+    </Canvas>
+  );
+}
