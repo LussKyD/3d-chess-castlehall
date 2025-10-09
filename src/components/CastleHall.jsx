@@ -1,3 +1,4 @@
+```javascript
 // src/components/CastleHall.jsx
 import React, { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
@@ -18,7 +19,8 @@ function Torch({ position, color = '#ffb347', intensity = 1.6 }) {
       position={position}
       color={color}
       intensity={intensity}
-      distance={8}
+      distance={14}
+      decay={2}
       castShadow
     />
   )
@@ -44,20 +46,11 @@ function Throne({ position, rotation = [0, 0, 0], color = '#ffd700', occupant = 
     <group position={position} rotation={rotation}>
       <mesh castShadow>
         <boxGeometry args={[1.3, 0.4, 1.3]} />
-        <meshStandardMaterial color={color} metalness={0.95} roughness={0.18} />
+        <meshStandardMaterial color={color} metalness={0.95} roughness={0.15} />
       </mesh>
-      <mesh position={[0, 1.05, -0.32]} castShadow>
-        <boxGeometry args={[1.05, 2.1, 0.45]} />
-        <meshStandardMaterial color={color} metalness={0.95} roughness={0.2} />
-      </mesh>
-      <Crown position={[0, 1.85, -0.2]} />
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <sphereGeometry args={[0.32, 16, 16]} />
-        <meshStandardMaterial
-          color={occupant === 'King' ? '#f9e76c' : '#f4c2ff'}
-          metalness={0.7}
-          roughness={0.25}
-        />
+      <mesh position={[0, 0.65, 0]} castShadow>
+        <boxGeometry args={[1.05, 1.2, 0.75]} />
+        <meshStandardMaterial color={'#7d5a20'} metalness={0.2} roughness={0.6} />
       </mesh>
     </group>
   )
@@ -67,10 +60,12 @@ function Throne({ position, rotation = [0, 0, 0], color = '#ffd700', occupant = 
 function Guard({ position, rotation = [0, 0, 0] }) {
   return (
     <group position={position} rotation={rotation}>
+      {/* torso: centered around origin so we can place feet by setting group Y = half-height */}
       <mesh castShadow>
         <cylinderGeometry args={[0.25, 0.28, 1.6, 12]} />
         <meshStandardMaterial color="#555" metalness={0.6} roughness={0.4} />
       </mesh>
+      {/* head */}
       <mesh position={[0, 1, 0]} castShadow>
         <sphereGeometry args={[0.28, 12, 12]} />
         <meshStandardMaterial color="#333" metalness={0.6} roughness={0.3} />
@@ -97,21 +92,10 @@ function Painting({ position, rotation = [0, 0, 0] }) {
 
 export default function CastleHall() {
   return (
-    <Canvas shadows camera={{ position: [18, 14, 18], fov: 45 }}>
-      <ambientLight intensity={0.36} />
-      <directionalLight
-        position={[20, 30, 12]}
-        intensity={1.6}
-        castShadow
-        shadow-mapSize-width={4096}
-        shadow-mapSize-height={4096}
-      />
-      <pointLight position={[0, 12, 0]} intensity={0.25} color="#b39ddb" />
-
-      <mesh scale={[140, 140, 140]}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <meshBasicMaterial color="#c9a850" side={1} />
-      </mesh>
+    <Canvas shadowMap camera={{ position: [0, 14, 35], fov: 40 }}>
+      {/* ambient & directional */}
+      <ambientLight intensity={0.16} />
+      <directionalLight position={[20, 30, 10]} intensity={0.6} castShadow />
 
       <group>
         {/* Floor */}
@@ -141,7 +125,7 @@ export default function CastleHall() {
 
         {/* Correctly oriented windows on opposite walls (left/right) */}
         {[[-25, 10, 0], [25, 10, 0]].map(([x, y, z], i) => (
-          <group key={i} position={[x, y, z]} rotation={[0, i === 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+          <group key={`win-${i}`} position={[x, y, z]} rotation={[0, i === 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
             {[-15, 0, 15].map((zOff, j) => (
               <group key={j} position={[0, 0, zOff]}>
                 <mesh rotation={[0, 0, Math.PI]}>
@@ -158,36 +142,50 @@ export default function CastleHall() {
         ))}
 
         {/* Double doors (front & back) with guards inside */}
-        {[
-          { z: -35 + 0.4, rot: 0, guardZ: 2 },
-          { z: 35 - 0.4, rot: Math.PI, guardZ: -2 },
-        ].map((d, i) => (
-          <group key={i} position={[0, 5, d.z]} rotation={[0, d.rot, 0]}>
-            <mesh>
-              <boxGeometry args={[10, 12, 1]} />
-              <meshStandardMaterial color="#d6af45" metalness={0.95} roughness={0.2} />
-            </mesh>
-            {[[-2.5, 0, 0.55], [2.5, 0, 0.55]].map((p, j) => (
-              <mesh key={j} position={p}>
-                <boxGeometry args={[4.6, 10.6, 0.2]} />
-                <meshStandardMaterial color="#b89028" metalness={0.85} roughness={0.3} />
-              </mesh>
-            ))}
-            {[[-1, 0, 0.9], [1, 0, 0.9]].map((p, j) => (
-              <mesh key={`handle-${i}-${j}`} position={p}>
-                <sphereGeometry args={[0.18, 16, 16]} />
-                <meshStandardMaterial color="#fff6d5" metalness={1} roughness={0.15} />
-              </mesh>
-            ))}
-            <mesh position={[0, -1.5, 0.95]}>
-              <boxGeometry args={[0.4, 0.6, 0.08]} />
-              <meshStandardMaterial color="#7a5b13" metalness={0.6} roughness={0.5} />
-            </mesh>
-            {/* Guards inside near door edges */}
-            <Guard position={[-5, 0, d.guardZ]} rotation={[0, 0.1, 0]} />
-            <Guard position={[5, 0, d.guardZ]} rotation={[0, -0.1, 0]} />
-          </group>
-        ))}
+        {(() => {
+          const DOOR_DEFS = [
+            { z: -35 + 0.4, rot: 0, guardZ: 2 },
+            { z: 35 - 0.4, rot: Math.PI, guardZ: -2 },
+          ]
+          const GUARD_HALF_HEIGHT = 0.8 // half of the guard's 1.6 height
+          const DOOR_GROUP_Y = 5 // original door group Y in this layout
+          const GUARD_LOCAL_Y_INSIDE = -DOOR_GROUP_Y + GUARD_HALF_HEIGHT // places guard feet on (approx) y=0
+          const OUTSIDE_OFFSET = 2.2 // how far outside the wall to place outside guards
+
+          return DOOR_DEFS.map((d, i) => (
+            <React.Fragment key={`door-frag-${i}`}>
+              {/* door structure (kept as original, but guards will be adjusted) */}
+              <group position={[0, DOOR_GROUP_Y, d.z]} rotation={[0, d.rot, 0]}>
+                <mesh>
+                  <boxGeometry args={[10, 12, 1]} />
+                  <meshStandardMaterial color="#d6af45" metalness={0.95} roughness={0.2} />
+                </mesh>
+                {[[-2.5, 0, 0.55], [2.5, 0, 0.55]].map((p, j) => (
+                  <mesh key={j} position={p}>
+                    <boxGeometry args={[4.6, 10.6, 0.2]} />
+                    <meshStandardMaterial color="#f1d98a" metalness={0.92} roughness={0.14} />
+                  </mesh>
+                ))}
+                <mesh position={[0, -1.5, 0.95]}>
+                  <boxGeometry args={[0.4, 0.6, 0.08]} />
+                  <meshStandardMaterial color="#7a5b13" metalness={0.6} roughness={0.5} />
+                </mesh>
+
+                {/* Guards inside near door edges — local Y chosen so feet sit near the floor (approx y=0). */}
+                <Guard position={[-5, GUARD_LOCAL_Y_INSIDE, d.guardZ]} rotation={[0, 0.1, 0]} />
+                <Guard position={[5, GUARD_LOCAL_Y_INSIDE, d.guardZ]} rotation={[0, -0.1, 0]} />
+              </group>
+
+              {/* Outside guards placed on the exterior of the door (world coordinates).
+                  We create a small group at floor-level (y=0) and put guards with feet at ~0.8 so they sit on the ground.
+                  This yields both inside and outside guards as requested. */}
+              <group key={`outside-${i}`} position={[0, 0, d.z + Math.sign(d.z) * OUTSIDE_OFFSET]}>
+                <Guard position={[-5, 0.8, 0]} rotation={[0, 0.1, 0]} />
+                <Guard position={[5, 0.8, 0]} rotation={[0, -0.1, 0]} />
+              </group>
+            </React.Fragment>
+          ))
+        })()}
 
         {/* Paintings beside doors */}
         <Painting position={[-12, 10, -33]} />
@@ -198,39 +196,20 @@ export default function CastleHall() {
         {/* Pillars & thrones */}
         {[-28, -14, 14, 28].map((x, i) =>
           [-28, -14, 14, 28].map((z, j) => (
-            <mesh key={`pillar-${i}-${j}`} position={[x, 12, z]} castShadow>
-              <cylinderGeometry args={[0.7, 0.8, 24, 20]} />
-              <meshStandardMaterial color="#e8ca74" metalness={0.9} roughness={0.18} />
-            </mesh>
+            <group key={`pillar-${i}-${j}`} position={[x, 0, z]}>
+              <mesh position={[0, 3, 0]}>
+                <cylinderGeometry args={[0.6, 1, 6, 12]} />
+                <meshStandardMaterial color="#b68a3a" metalness={0.85} roughness={0.25} />
+              </mesh>
+            </group>
           ))
         )}
+
         <Throne position={[-24, 0, 0]} rotation={[0, Math.PI / 2, 0]} occupant="Queen" />
         <Throne position={[24, 0, 0]} rotation={[0, -Math.PI / 2, 0]} occupant="King" />
 
         {/* Decorations */}
         {[
           [-18, 0, -18],
-          [18, 0, -18],
-          [-18, 0, 18],
-          [18, 0, 18],
-        ].map((p, i) => (
-          <Crown key={`crown-${i}`} position={[p[0], 0.5, p[2]]} />
-        ))}
-        {[[-30, 3, 0], [30, 3, 0], [0, 3, -30], [0, 3, 30]].map((p, i) => (
-          <Torch key={`torch-${i}`} position={p} />
-        ))}
-      </group>
-
-      <Board />
-
-      <OrbitControls
-        enablePan
-        enableZoom
-        enableRotate
-        minDistance={8}
-        maxDistance={160}
-        maxPolarAngle={Math.PI / 2.03}
-      />
-    </Canvas>
-  )
-}
+          [
+```
