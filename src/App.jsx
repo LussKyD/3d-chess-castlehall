@@ -1,10 +1,12 @@
-import React from 'react'
-import CastleHall from './components/CastleHall'
+import React from 'react';
+import CastleHall from './components/CastleHall';
 
-export default function App() {
+function App() {
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#100a05' }}>
+    <div className="App">
       <CastleHall />
     </div>
-  )
+  );
 }
+
+export default App;
