@@ -1,70 +1,102 @@
-```javascript
-// src/components/CastleHall.jsx
-import React, { useRef } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import Board from './Board'
+import React, { useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-function Torch({ position, color = '#ffb347', intensity = 1.6 }) {
-  const light = useRef()
-  useFrame(({ clock }) => {
-    if (light.current) {
-      const t = clock.elapsedTime
-      light.current.intensity = intensity + Math.sin(t * 8 + position[0]) * 0.25
+const CastleHall = () => {
+  const mountRef = useRef(null);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+
+    // === Scene Setup ===
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
+
+    const camera = new THREE.PerspectiveCamera(75, mount.clientWidth / mount.clientHeight, 0.1, 1000);
+    camera.position.set(0, 5, 15);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    mount.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // === Lights ===
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 20, 10);
+    scene.add(directionalLight);
+
+    // === Floor ===
+    const floorGeometry = new THREE.PlaneGeometry(100, 100);
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0;
+    scene.add(floor);
+
+    // === Walls (Mirrors) ===
+    const mirrorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x888888,
+      metalness: 0.8,
+      roughness: 0.2
+    });
+
+    const wallGeometry = new THREE.BoxGeometry(100, 20, 1);
+    const wallBack = new THREE.Mesh(wallGeometry, mirrorMaterial);
+    wallBack.position.set(0, 10, -50);
+    scene.add(wallBack);
+
+    const wallFront = new THREE.Mesh(wallGeometry, mirrorMaterial);
+    wallFront.position.set(0, 10, 50);
+    scene.add(wallFront);
+
+    const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(1, 20, 100), mirrorMaterial);
+    wallLeft.position.set(-50, 10, 0);
+    scene.add(wallLeft);
+
+    const wallRight = new THREE.Mesh(new THREE.BoxGeometry(1, 20, 100), mirrorMaterial);
+    wallRight.position.set(50, 10, 0);
+    scene.add(wallRight);
+
+    // === Guards ===
+    const guardGeometry = new THREE.CylinderGeometry(0.5, 0.5, 3, 32);
+    const guardMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+
+    // Inside guards
+    for (let i = 0; i < 5; i++) {
+      const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+      guard.position.set(-10 + i * 5, 1.5, -10);
+      scene.add(guard);
     }
-  })
-  return (
-    <pointLight
-      ref={light}
-      position={position}
-      color={color}
-      intensity={intensity}
-      distance={14}
-      decay={2}
-      castShadow
-    />
-  )
-}
 
-function Crown({ position }) {
-  return (
-    <group position={position}>
-      <mesh castShadow>
-        <torusGeometry args={[0.45, 0.1, 16, 32]} />
-        <meshStandardMaterial color="#ffd700" metalness={1} roughness={0.08} />
-      </mesh>
-      <mesh position={[0, 0.32, 0]} castShadow>
-        <coneGeometry args={[0.11, 0.32, 10]} />
-        <meshStandardMaterial color="#fff7c0" metalness={0.92} roughness={0.18} />
-      </mesh>
-    </group>
-  )
-}
+    // Outside guards
+    for (let i = 0; i < 5; i++) {
+      const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+      guard.position.set(-10 + i * 5, 1.5, 20);
+      scene.add(guard);
+    }
 
-function Throne({ position, rotation = [0, 0, 0], color = '#ffd700', occupant = 'King' }) {
-  return (
-    <group position={position} rotation={rotation}>
-      <mesh castShadow>
-        <boxGeometry args={[1.3, 0.4, 1.3]} />
-        <meshStandardMaterial color={color} metalness={0.95} roughness={0.15} />
-      </mesh>
-      <mesh position={[0, 0.65, 0]} castShadow>
-        <boxGeometry args={[1.05, 1.2, 0.75]} />
-        <meshStandardMaterial color={'#7d5a20'} metalness={0.2} roughness={0.6} />
-      </mesh>
-    </group>
-  )
-}
+    // === Animate ===
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
 
-/* Guards now placed inside the hall beside the doors */
-function Guard({ position, rotation = [0, 0, 0] }) {
-  return (
-    <group position={position} rotation={rotation}>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.25, 0.28, 1.6, 12]} />
-        <meshStandardMaterial color="#555" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[0, 1, 0]} castShadow>
-        <sphereGeometry args={[0.28, 12, 12]} />
-        <meshStand
-```
+    animate();
+
+    // === Cleanup ===
+    return () => {
+      mount.removeChild(renderer.domElement);
+      renderer.dispose();
+    };
+  }, []);
+
+  return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
+};
+
+export default CastleHall;
