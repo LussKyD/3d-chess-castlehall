@@ -1,22 +1,22 @@
 {
   "name": "3d-chess-castlehall",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist"
   },
- "dependencies": {
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "three": "^0.154.0",
-  "@react-three/fiber": "^8.13.0",
-  "@react-three/drei": "^9.39.0",
-  "chess.js": "^1.0.0"
-},
+  "dependencies": {
+    "@react-three/drei": "^9.105.6",
+    "@react-three/fiber": "^8.16.3",
+    "three": "^0.164.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
   "devDependencies": {
-    "vite": "^5.2.0",
-    "@vitejs/plugin-react": "^4.2.1"
+    "vite": "^5.4.8",
+    "gh-pages": "^6.1.1"
   }
 }
