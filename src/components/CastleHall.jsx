@@ -1,8 +1,89 @@
 // src/components/CastleHall.jsx
-import React, { useRef } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import React, { useMemo, useRef, useState, useEffect } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import Board from './Board'
+import Character from './Character'
+import CaptureEscort from './CaptureEscort'
+
+const INTRO_DURATION = 16
+const FRONT_DOOR_Z = -34.6
+const BACK_DOOR_Z = 34.6
+const DUNGEON_POSITION = [0, 0, -9]
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t
+}
+
+function lerpVec(a, b, t) {
+  return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]
+}
+
+function smoothstep(t) {
+  return t * t * (3 - 2 * t)
+}
+
+function interpolateKeyframes(frames, t) {
+  if (t <= frames[0].t) return frames[0].pos
+  for (let i = 0; i < frames.length - 1; i += 1) {
+    const a = frames[i]
+    const b = frames[i + 1]
+    if (t <= b.t) {
+      const segmentT = (t - a.t) / (b.t - a.t)
+      const eased = smoothstep(segmentT)
+      return lerpVec(a.pos, b.pos, eased)
+    }
+  }
+  return frames[frames.length - 1].pos
+}
+
+function IntroTimeline({ timeRef, duration, skipped, onDone }) {
+  const doneRef = useRef(false)
+
+  useFrame((_, delta) => {
+    if (doneRef.current) return
+    if (skipped) {
+      timeRef.current = duration
+      doneRef.current = true
+      if (onDone) onDone()
+      return
+    }
+    timeRef.current = Math.min(timeRef.current + delta, duration)
+    if (timeRef.current >= duration) {
+      doneRef.current = true
+      if (onDone) onDone()
+    }
+  })
+
+  return null
+}
+
+function CinematicCamera({ timeRef, duration, active }) {
+  const { camera } = useThree()
+  const frames = useMemo(
+    () => [
+      { t: 0, pos: [0, 18, 52] },
+      { t: 4, pos: [0, 20, 26] },
+      { t: 10, pos: [14, 16, 20] },
+      { t: duration, pos: [18, 14, 18] },
+    ],
+    [duration]
+  )
+
+  useFrame(() => {
+    if (!active) return
+    const t = Math.min(timeRef.current, duration)
+    const pos = interpolateKeyframes(frames, t)
+    camera.position.set(pos[0], pos[1], pos[2])
+    camera.lookAt(0, 5, 0)
+  })
+
+  return null
+}
 
 function Torch({ position, color = '#ffb347', intensity = 1.6 }) {
   const light = useRef()
@@ -63,22 +144,6 @@ function Throne({ position, rotation = [0, 0, 0], color = '#ffd700', occupant = 
   )
 }
 
-/* Guards now placed inside the hall beside the doors */
-function Guard({ position, rotation = [0, 0, 0] }) {
-  return (
-    <group position={position} rotation={rotation}>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.25, 0.28, 1.6, 12]} />
-        <meshStandardMaterial color="#555" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[0, 1, 0]} castShadow>
-        <sphereGeometry args={[0.28, 12, 12]} />
-        <meshStandardMaterial color="#333" metalness={0.6} roughness={0.3} />
-      </mesh>
-    </group>
-  )
-}
-
 /* Decorative framed paintings */
 function Painting({ position, rotation = [0, 0, 0] }) {
   return (
@@ -95,9 +160,250 @@ function Painting({ position, rotation = [0, 0, 0] }) {
   )
 }
 
-export default function CastleHall() {
+function Door({ position, rotation = [0, 0, 0], timeRef }) {
+  const leftPanel = useRef()
+  const rightPanel = useRef()
+
+  useFrame(() => {
+    const t = timeRef.current
+    const openProgress = clamp((t - 0.5) / 1.8, 0, 1)
+    const closeProgress = clamp((t - 12) / 2, 0, 1)
+    const open = openProgress * (1 - closeProgress)
+    const angle = open * Math.PI * 0.52
+    if (leftPanel.current) leftPanel.current.rotation.y = angle
+    if (rightPanel.current) rightPanel.current.rotation.y = -angle
+  })
+
   return (
-    <Canvas shadows camera={{ position: [18, 14, 18], fov: 45 }}>
+    <group position={position} rotation={rotation}>
+      <mesh>
+        <boxGeometry args={[10, 12, 1]} />
+        <meshStandardMaterial color="#d6af45" metalness={0.95} roughness={0.2} />
+      </mesh>
+      <group ref={leftPanel} position={[-5, 0, 0.55]}>
+        <mesh position={[2.3, 0, 0]}>
+          <boxGeometry args={[4.6, 10.6, 0.2]} />
+          <meshStandardMaterial color="#b89028" metalness={0.85} roughness={0.3} />
+        </mesh>
+        <mesh position={[3.7, 0, 0.35]}>
+          <sphereGeometry args={[0.18, 16, 16]} />
+          <meshStandardMaterial color="#fff6d5" metalness={1} roughness={0.15} />
+        </mesh>
+      </group>
+      <group ref={rightPanel} position={[5, 0, 0.55]}>
+        <mesh position={[-2.3, 0, 0]}>
+          <boxGeometry args={[4.6, 10.6, 0.2]} />
+          <meshStandardMaterial color="#b89028" metalness={0.85} roughness={0.3} />
+        </mesh>
+        <mesh position={[-3.7, 0, 0.35]}>
+          <sphereGeometry args={[0.18, 16, 16]} />
+          <meshStandardMaterial color="#fff6d5" metalness={1} roughness={0.15} />
+        </mesh>
+      </group>
+      <mesh position={[0, -1.5, 0.95]}>
+        <boxGeometry args={[0.4, 0.6, 0.08]} />
+        <meshStandardMaterial color="#7a5b13" metalness={0.6} roughness={0.5} />
+      </mesh>
+    </group>
+  )
+}
+
+function RoyalProcession({ timeRef, duration }) {
+  const kingRef = useRef()
+  const queenRef = useRef()
+  const kingFrames = useMemo(
+    () => [
+      { t: 0, pos: [0, 0, BACK_DOOR_Z + 4] },
+      { t: 2.5, pos: [0, 0, BACK_DOOR_Z - 6] },
+      { t: 7, pos: [12, 0, 14] },
+      { t: 10.5, pos: [24, 0, 0] },
+      { t: duration, pos: [24, 0, 0] },
+    ],
+    [duration]
+  )
+  const queenFrames = useMemo(
+    () => [
+      { t: 0, pos: [0, 0, FRONT_DOOR_Z - 4] },
+      { t: 2.5, pos: [0, 0, FRONT_DOOR_Z + 6] },
+      { t: 7, pos: [-12, 0, -14] },
+      { t: 10.5, pos: [-24, 0, 0] },
+      { t: duration, pos: [-24, 0, 0] },
+    ],
+    [duration]
+  )
+
+  useFrame(() => {
+    const t = Math.min(timeRef.current, duration)
+    const kingPos = interpolateKeyframes(kingFrames, t)
+    const queenPos = interpolateKeyframes(queenFrames, t)
+    if (kingRef.current) {
+      kingRef.current.position.set(kingPos[0], kingPos[1], kingPos[2])
+      kingRef.current.lookAt(0, 1, 0)
+    }
+    if (queenRef.current) {
+      queenRef.current.position.set(queenPos[0], queenPos[1], queenPos[2])
+      queenRef.current.lookAt(0, 1, 0)
+    }
+  })
+
+  return (
+    <group>
+      <group ref={queenRef}>
+        <Character role="queen" position={[0, 0, 0]} />
+      </group>
+      <group ref={kingRef}>
+        <Character role="king" position={[0, 0, 0]} />
+      </group>
+    </group>
+  )
+}
+
+function GuardFormation({ timeRef, duration }) {
+  const guardRefs = useRef([])
+  const guardConfigs = useMemo(
+    () => [
+      {
+        id: 'q1',
+        frames: [
+          { t: 0, pos: [-2.5, 0, FRONT_DOOR_Z + 2] },
+          { t: 3, pos: [-10, 0, -18] },
+          { t: 8, pos: [-22, 0, -3] },
+          { t: duration, pos: [-22, 0, -3] },
+        ],
+      },
+      {
+        id: 'q2',
+        frames: [
+          { t: 0, pos: [2.5, 0, FRONT_DOOR_Z + 2] },
+          { t: 3, pos: [-8, 0, -14] },
+          { t: 8, pos: [-22, 0, 3] },
+          { t: duration, pos: [-22, 0, 3] },
+        ],
+      },
+      {
+        id: 'q3',
+        frames: [
+          { t: 0, pos: [-5.5, 0, FRONT_DOOR_Z + 2] },
+          { t: 3, pos: [-14, 0, -10] },
+          { t: 8, pos: [-26, 0, -3] },
+          { t: duration, pos: [-26, 0, -3] },
+        ],
+      },
+      {
+        id: 'q4',
+        hideAfter: 14,
+        frames: [
+          { t: 0, pos: [5.5, 0, FRONT_DOOR_Z + 2] },
+          { t: 3, pos: [-12, 0, -6] },
+          { t: 8, pos: [-26, 0, 3] },
+          { t: 12, pos: [-6, 0, FRONT_DOOR_Z + 4] },
+          { t: 14, pos: [-2, 0, FRONT_DOOR_Z - 6] },
+        ],
+      },
+      {
+        id: 'k1',
+        frames: [
+          { t: 0, pos: [-2.5, 0, BACK_DOOR_Z - 2] },
+          { t: 3, pos: [10, 0, 18] },
+          { t: 8, pos: [22, 0, -3] },
+          { t: duration, pos: [22, 0, -3] },
+        ],
+      },
+      {
+        id: 'k2',
+        frames: [
+          { t: 0, pos: [2.5, 0, BACK_DOOR_Z - 2] },
+          { t: 3, pos: [8, 0, 14] },
+          { t: 8, pos: [22, 0, 3] },
+          { t: duration, pos: [22, 0, 3] },
+        ],
+      },
+      {
+        id: 'k3',
+        frames: [
+          { t: 0, pos: [-5.5, 0, BACK_DOOR_Z - 2] },
+          { t: 3, pos: [14, 0, 10] },
+          { t: 8, pos: [26, 0, -3] },
+          { t: duration, pos: [26, 0, -3] },
+        ],
+      },
+      {
+        id: 'k4',
+        hideAfter: 14,
+        frames: [
+          { t: 0, pos: [5.5, 0, BACK_DOOR_Z - 2] },
+          { t: 3, pos: [12, 0, 6] },
+          { t: 8, pos: [26, 0, 3] },
+          { t: 12, pos: [6, 0, BACK_DOOR_Z - 4] },
+          { t: 14, pos: [2, 0, BACK_DOOR_Z + 6] },
+        ],
+      },
+    ],
+    [duration]
+  )
+
+  useFrame(() => {
+    const t = Math.min(timeRef.current, duration)
+    guardConfigs.forEach((guard, index) => {
+      const ref = guardRefs.current[index]
+      if (!ref) return
+      const pos = interpolateKeyframes(guard.frames, t)
+      ref.position.set(pos[0], pos[1], pos[2])
+      ref.lookAt(0, 1, 0)
+      if (guard.hideAfter) {
+        ref.visible = t <= guard.hideAfter
+      } else {
+        ref.visible = true
+      }
+    })
+  })
+
+  return (
+    <group>
+      {guardConfigs.map((guard, index) => (
+        <group key={guard.id} ref={(el) => (guardRefs.current[index] = el)}>
+          <Character role="guard" position={[0, 0, 0]} />
+        </group>
+      ))}
+    </group>
+  )
+}
+
+export default function CastleHall() {
+  const introTime = useRef(0)
+  const [introDone, setIntroDone] = useState(false)
+  const [introSkipped, setIntroSkipped] = useState(false)
+  const [captureQueue, setCaptureQueue] = useState([])
+  const [activeCapture, setActiveCapture] = useState(null)
+
+  useEffect(() => {
+    if (!activeCapture && captureQueue.length) {
+      setActiveCapture(captureQueue[0])
+      setCaptureQueue((prev) => prev.slice(1))
+    }
+  }, [activeCapture, captureQueue])
+
+  function handleCapture(capture) {
+    setCaptureQueue((prev) => [...prev, capture])
+  }
+
+  return (
+    <div className="app">
+      {!introDone && (
+        <div className="ui-overlay">
+          <button type="button" onClick={() => setIntroSkipped(true)}>
+            Skip intro
+          </button>
+        </div>
+      )}
+      <Canvas shadows camera={{ position: [18, 14, 18], fov: 45 }}>
+        <IntroTimeline
+          timeRef={introTime}
+          duration={INTRO_DURATION}
+          skipped={introSkipped}
+          onDone={() => setIntroDone(true)}
+        />
+        <CinematicCamera timeRef={introTime} duration={INTRO_DURATION} active={!introDone} />
       <ambientLight intensity={0.36} />
       <directionalLight
         position={[20, 30, 12]}
@@ -157,35 +463,13 @@ export default function CastleHall() {
           </group>
         ))}
 
-        {/* Double doors (front & back) with guards inside */}
+        {/* Double doors (front & back) */}
         {[
-          { z: -35 + 0.4, rot: 0, guardZ: 2 },
-          { z: 35 - 0.4, rot: Math.PI, guardZ: -2 },
+          { z: FRONT_DOOR_Z, rot: 0 },
+          { z: BACK_DOOR_Z, rot: Math.PI },
         ].map((d, i) => (
           <group key={i} position={[0, 5, d.z]} rotation={[0, d.rot, 0]}>
-            <mesh>
-              <boxGeometry args={[10, 12, 1]} />
-              <meshStandardMaterial color="#d6af45" metalness={0.95} roughness={0.2} />
-            </mesh>
-            {[[-2.5, 0, 0.55], [2.5, 0, 0.55]].map((p, j) => (
-              <mesh key={j} position={p}>
-                <boxGeometry args={[4.6, 10.6, 0.2]} />
-                <meshStandardMaterial color="#b89028" metalness={0.85} roughness={0.3} />
-              </mesh>
-            ))}
-            {[[-1, 0, 0.9], [1, 0, 0.9]].map((p, j) => (
-              <mesh key={`handle-${i}-${j}`} position={p}>
-                <sphereGeometry args={[0.18, 16, 16]} />
-                <meshStandardMaterial color="#fff6d5" metalness={1} roughness={0.15} />
-              </mesh>
-            ))}
-            <mesh position={[0, -1.5, 0.95]}>
-              <boxGeometry args={[0.4, 0.6, 0.08]} />
-              <meshStandardMaterial color="#7a5b13" metalness={0.6} roughness={0.5} />
-            </mesh>
-            {/* Guards inside near door edges */}
-            <Guard position={[-5, 0, d.guardZ]} rotation={[0, 0.1, 0]} />
-            <Guard position={[5, 0, d.guardZ]} rotation={[0, -0.1, 0]} />
+            <Door position={[0, 0, 0]} rotation={[0, 0, 0]} timeRef={introTime} />
           </group>
         ))}
 
@@ -221,16 +505,24 @@ export default function CastleHall() {
         ))}
       </group>
 
-      <Board />
+      <RoyalProcession timeRef={introTime} duration={INTRO_DURATION} />
+      <GuardFormation timeRef={introTime} duration={INTRO_DURATION} />
+      <CaptureEscort
+        capture={activeCapture}
+        onComplete={() => setActiveCapture(null)}
+        dungeonPosition={DUNGEON_POSITION}
+      />
+      <Board disabled={!introDone} onCapture={handleCapture} />
 
       <OrbitControls
-        enablePan
-        enableZoom
-        enableRotate
+        enablePan={introDone}
+        enableZoom={introDone}
+        enableRotate={introDone}
         minDistance={8}
         maxDistance={160}
         maxPolarAngle={Math.PI / 2.03}
       />
     </Canvas>
+    </div>
   )
 }

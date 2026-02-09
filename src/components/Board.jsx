@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useThree } from '@react-three/fiber'
 import { createGame } from '../engine/chessEngine'
+import Piece from './Piece'
 
 const SQUARE = 1
 
@@ -10,12 +10,20 @@ function algebraic(c, r){
   return `${file}${rank}`
 }
 
-export default function Board(){
+function squareToWorld(square){
+  const file = square.charCodeAt(0) - 'a'.charCodeAt(0)
+  const rank = Number(square[1])
+  const row = 8 - rank
+  const x = (file - 3.5) * SQUARE
+  const z = (row - 3.5) * SQUARE
+  return [x, 0.35, z]
+}
+
+export default function Board({ disabled = false, onCapture }){
   const gameRef = useRef(null)
   const [boardState, setBoardState] = useState([])
   const [selected, setSelected] = useState(null)
   const [legalMoves, setLegalMoves] = useState([])
-  const { camera } = useThree()
 
   useEffect(()=>{
     gameRef.current = createGame()
@@ -23,11 +31,20 @@ export default function Board(){
   },[])
 
   function handleSquareClick(square){
+    if(disabled) return
     if(!gameRef.current) return
     // If a square is already selected and the clicked square is a legal move, make the move
     if(selected && legalMoves.includes(square)){
       const res = gameRef.current.move(selected, square)
       if(res){
+        if(res.captured && onCapture){
+          const capturedColor = res.color === 'w' ? 'b' : 'w'
+          onCapture({
+            piece: { type: res.captured, color: capturedColor },
+            position: squareToWorld(res.to),
+            square: res.to,
+          })
+        }
         setBoardState(gameRef.current.board())
       }
       setSelected(null)
@@ -47,25 +64,6 @@ export default function Board(){
     }
   }
 
-  // helper to render a piece geometry based on type
-  function PieceMesh({ piece, position }){
-    const color = piece.color === 'w' ? '#ffffff' : '#111111'
-    const metal = piece.color === 'w' ? 0.3 : 0.8
-    const rough = 0.4
-    const key = `${position.join(',')}-${piece.type}-${piece.color}`
-    return (
-      <mesh key={key} position={position} castShadow>
-        {piece.type === 'p' && <sphereGeometry args={[0.18, 16, 16]} />}
-        {piece.type === 'r' && <boxGeometry args={[0.38, 0.7, 0.38]} />}
-        {piece.type === 'n' && <torusGeometry args={[0.25, 0.08, 16, 100]} />}
-        {piece.type === 'b' && <coneGeometry args={[0.25, 0.6, 16]} />}
-        {piece.type === 'q' && <cylinderGeometry args={[0.28, 0.34, 0.9, 32]} />}
-        {piece.type === 'k' && <cylinderGeometry args={[0.32, 0.4, 1.05, 32]} />}
-        <meshStandardMaterial color={color} metalness={metal} roughness={rough} />
-      </mesh>
-    )
-  }
-
   // build squares and pieces
   const squares = []
   const pieces = []
@@ -79,7 +77,15 @@ export default function Board(){
       const highlight = selected === sq ? '#ffd86b' : (legalMoves.includes(sq) ? '#89f' : baseColor)
 
       squares.push(
-        <mesh key={`sq-${r}-${c}`} position={[x, 0, z]} receiveShadow onPointerDown={(e) => { e.stopPropagation(); handleSquareClick(sq) }}>
+        <mesh
+          key={`sq-${r}-${c}`}
+          position={[x, 0, z]}
+          receiveShadow
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            handleSquareClick(sq)
+          }}
+        >
           <boxGeometry args={[SQUARE, 0.06, SQUARE]} />
           <meshStandardMaterial color={highlight} metalness={0.2} roughness={0.6} />
         </mesh>
@@ -90,7 +96,7 @@ export default function Board(){
         const piece = boardState[r][c]
         if(piece){
           const y = 0.35
-          pieces.push(<PieceMesh key={`pc-${r}-${c}`} piece={piece} position={[x, y, z]} />)
+          pieces.push(<Piece key={`pc-${r}-${c}`} piece={piece} position={[x, y, z]} />)
         }
       }
     }
