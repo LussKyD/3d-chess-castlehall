@@ -29,7 +29,8 @@ function DungeonEntrance({ position, openProgressRef, accent = '#7a5b13' }) {
   const leftRef = useRef()
   const rightRef = useRef()
   const floorMaterial = useRef()
-  const cellRef = useRef()
+  const cellMaterial = useRef()
+  const lightRef = useRef()
 
   useFrame(() => {
     const open = openProgressRef.current || 0
@@ -37,10 +38,15 @@ function DungeonEntrance({ position, openProgressRef, accent = '#7a5b13' }) {
     if (leftRef.current) leftRef.current.rotation.x = -angle
     if (rightRef.current) rightRef.current.rotation.x = angle
     if (floorMaterial.current) {
-      floorMaterial.current.opacity = lerp(1, 0.25, open)
+      floorMaterial.current.opacity = lerp(1, 0.12, open)
+      floorMaterial.current.depthWrite = open < 0.5
     }
-    if (cellRef.current) {
-      cellRef.current.visible = open > 0.05
+    if (cellMaterial.current) {
+      cellMaterial.current.opacity = lerp(1, 0.35, open)
+      cellMaterial.current.transparent = true
+    }
+    if (lightRef.current) {
+      lightRef.current.intensity = open * 0.6
     }
   })
 
@@ -57,10 +63,17 @@ function DungeonEntrance({ position, openProgressRef, accent = '#7a5b13' }) {
           opacity={1}
         />
       </mesh>
-      <group ref={cellRef}>
+      <group>
         <mesh position={[0, -1.4, 0]}>
           <boxGeometry args={[2.8, 2.6, 2.8]} />
-          <meshStandardMaterial color="#141216" metalness={0.1} roughness={0.9} />
+          <meshStandardMaterial
+            ref={cellMaterial}
+            color="#141216"
+            metalness={0.1}
+            roughness={0.9}
+            transparent
+            opacity={1}
+          />
         </mesh>
         {[-1, 1].map((x) =>
           [-1, 1].map((z) => (
@@ -71,6 +84,7 @@ function DungeonEntrance({ position, openProgressRef, accent = '#7a5b13' }) {
           ))
         )}
       </group>
+      <pointLight ref={lightRef} position={[0, -1.5, 0]} intensity={0} color="#b39ddb" />
       <group ref={leftRef} position={[-1.3, 0.05, 0]}>
         <mesh position={[0.65, 0, 0]} castShadow>
           <boxGeometry args={[1.3, 0.08, 2.6]} />
@@ -142,6 +156,7 @@ export default function CaptureEscort({
     const startPos = [capture.position[0], 0, capture.position[2]]
 
     let guardPos = homePos
+    let guardYOffset = 0
     let piecePos = pieceStart
     let openProgress = 0
 
@@ -160,18 +175,20 @@ export default function CaptureEscort({
       const dropT = (t - APPROACH_TIME - ESCORT_TIME) / DROP_TIME
       const p = smoothstep(dropT)
       guardPos = dungeonPosition
+      guardYOffset = lerp(0, -0.8, p)
       piecePos = [dungeonPosition[0], lerp(0.4, -2.2, p), dungeonPosition[2]]
       openProgress = 1
     } else {
       const returnT = (t - APPROACH_TIME - ESCORT_TIME - DROP_TIME) / RETURN_TIME
       const p = smoothstep(returnT)
       guardPos = lerpVec(dungeonPosition, homePos, p)
+      guardYOffset = lerp(-0.8, 0, p)
       piecePos = [dungeonPosition[0], -2.2, dungeonPosition[2]]
       openProgress = 1 - p
     }
 
     const activeGuard = side === 'w' ? guards.w : guards.b
-    activeGuard.position.set(guardPos[0], guardPos[1], guardPos[2])
+    activeGuard.position.set(guardPos[0], guardPos[1] + guardYOffset, guardPos[2])
     activeGuard.lookAt(0, 1, 0)
     if (side === 'w') {
       whiteDoorProgress.current = openProgress
@@ -181,7 +198,8 @@ export default function CaptureEscort({
 
     pieceRef.current.position.set(piecePos[0], piecePos[1], piecePos[2])
     const hideAt = APPROACH_TIME + ESCORT_TIME + DROP_TIME
-    pieceRef.current.visible = t <= hideAt || openProgress > 0.1
+    const pieceVisible = t <= hideAt || openProgress > 0.15
+    pieceRef.current.visible = pieceVisible
 
     if (elapsed >= TOTAL_TIME) {
       startTime.current = null
