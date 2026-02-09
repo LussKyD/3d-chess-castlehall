@@ -22,11 +22,11 @@ export const MODEL_SETTINGS = {
     yOffset: 0,
   },
   king: {
-    scale: 1.9,
+    scale: 1.5,
     yOffset: 0,
   },
   queen: {
-    scale: 1.8,
+    scale: 1.4,
     yOffset: 0,
   },
 }

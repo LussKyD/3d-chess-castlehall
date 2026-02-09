@@ -43,6 +43,8 @@ export default function Board({ disabled = false, onCapture }){
             piece: { type: res.captured, color: capturedColor },
             position: squareToWorld(res.to),
             square: res.to,
+            capturedColor,
+            capturingColor: res.color,
           })
         }
         setBoardState(gameRef.current.board())

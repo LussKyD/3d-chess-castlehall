@@ -9,7 +9,14 @@ import CaptureEscort from './CaptureEscort'
 const INTRO_DURATION = 16
 const FRONT_DOOR_Z = -34.6
 const BACK_DOOR_Z = 34.6
-const DUNGEON_POSITION = [0, 0, -9]
+const THRONE_Z = 26
+const KING_THRONE_POS = [6, 0, THRONE_Z]
+const QUEEN_THRONE_POS = [-6, 0, THRONE_Z]
+const THRONE_ROTATION = [0, Math.PI, 0]
+const DUNGEON_POSITIONS = {
+  w: [-10, 0, 0],
+  b: [10, 0, 0],
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
@@ -66,9 +73,9 @@ function CinematicCamera({ timeRef, duration, active }) {
   const { camera } = useThree()
   const frames = useMemo(
     () => [
-      { t: 0, pos: [0, 18, 52] },
-      { t: 4, pos: [0, 20, 26] },
-      { t: 10, pos: [14, 16, 20] },
+      { t: 0, pos: [32, 18, 0] },
+      { t: 5, pos: [26, 17, 8] },
+      { t: 10, pos: [20, 16, 16] },
       { t: duration, pos: [18, 14, 18] },
     ],
     [duration]
@@ -120,26 +127,18 @@ function Crown({ position }) {
   )
 }
 
-function Throne({ position, rotation = [0, 0, 0], color = '#ffd700', occupant = 'King' }) {
+function Throne({ position, rotation = [0, 0, 0], color = '#ffd700', scale = 1 }) {
   return (
-    <group position={position} rotation={rotation}>
+    <group position={position} rotation={rotation} scale={scale}>
       <mesh castShadow>
-        <boxGeometry args={[1.3, 0.4, 1.3]} />
+        <boxGeometry args={[1.8, 0.5, 1.8]} />
         <meshStandardMaterial color={color} metalness={0.95} roughness={0.18} />
       </mesh>
-      <mesh position={[0, 1.05, -0.32]} castShadow>
-        <boxGeometry args={[1.05, 2.1, 0.45]} />
+      <mesh position={[0, 1.2, -0.5]} castShadow>
+        <boxGeometry args={[1.4, 2.4, 0.6]} />
         <meshStandardMaterial color={color} metalness={0.95} roughness={0.2} />
       </mesh>
-      <Crown position={[0, 1.85, -0.2]} />
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <sphereGeometry args={[0.32, 16, 16]} />
-        <meshStandardMaterial
-          color={occupant === 'King' ? '#f9e76c' : '#f4c2ff'}
-          metalness={0.7}
-          roughness={0.25}
-        />
-      </mesh>
+      <Crown position={[0, 2.2, -0.3]} />
     </group>
   )
 }
@@ -208,28 +207,33 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function RoyalProcession({ timeRef, duration }) {
+function RoyalProcession({ timeRef, duration, kingSeat, queenSeat }) {
   const kingRef = useRef()
   const queenRef = useRef()
+  const seatYOffset = 0.2
+  const kingTarget = [kingSeat[0], kingSeat[1] + seatYOffset, kingSeat[2] - 0.6]
+  const queenTarget = [queenSeat[0], queenSeat[1] + seatYOffset, queenSeat[2] - 0.6]
   const kingFrames = useMemo(
     () => [
       { t: 0, pos: [0, 0, BACK_DOOR_Z + 4] },
       { t: 2.5, pos: [0, 0, BACK_DOOR_Z - 6] },
-      { t: 7, pos: [12, 0, 14] },
-      { t: 10.5, pos: [24, 0, 0] },
-      { t: duration, pos: [24, 0, 0] },
+      { t: 7, pos: [10, 0, 14] },
+      { t: 10.5, pos: [kingTarget[0], kingTarget[1], kingTarget[2] - 2.4] },
+      { t: 12.5, pos: kingTarget },
+      { t: duration, pos: kingTarget },
     ],
-    [duration]
+    [duration, kingTarget]
   )
   const queenFrames = useMemo(
     () => [
       { t: 0, pos: [0, 0, FRONT_DOOR_Z - 4] },
       { t: 2.5, pos: [0, 0, FRONT_DOOR_Z + 6] },
-      { t: 7, pos: [-12, 0, -14] },
-      { t: 10.5, pos: [-24, 0, 0] },
-      { t: duration, pos: [-24, 0, 0] },
+      { t: 7, pos: [-10, 0, -14] },
+      { t: 10.5, pos: [queenTarget[0], queenTarget[1], queenTarget[2] - 2.4] },
+      { t: 12.5, pos: queenTarget },
+      { t: duration, pos: queenTarget },
     ],
-    [duration]
+    [duration, queenTarget]
   )
 
   useFrame(() => {
@@ -258,89 +262,60 @@ function RoyalProcession({ timeRef, duration }) {
   )
 }
 
-function GuardFormation({ timeRef, duration }) {
+function GuardFormation({ timeRef, duration, kingSeat, queenSeat }) {
   const guardRefs = useRef([])
-  const guardConfigs = useMemo(
-    () => [
-      {
-        id: 'q1',
-        frames: [
-          { t: 0, pos: [-2.5, 0, FRONT_DOOR_Z + 2] },
-          { t: 3, pos: [-10, 0, -18] },
-          { t: 8, pos: [-22, 0, -3] },
-          { t: duration, pos: [-22, 0, -3] },
-        ],
-      },
-      {
-        id: 'q2',
-        frames: [
-          { t: 0, pos: [2.5, 0, FRONT_DOOR_Z + 2] },
-          { t: 3, pos: [-8, 0, -14] },
-          { t: 8, pos: [-22, 0, 3] },
-          { t: duration, pos: [-22, 0, 3] },
-        ],
-      },
-      {
-        id: 'q3',
-        frames: [
-          { t: 0, pos: [-5.5, 0, FRONT_DOOR_Z + 2] },
-          { t: 3, pos: [-14, 0, -10] },
-          { t: 8, pos: [-26, 0, -3] },
-          { t: duration, pos: [-26, 0, -3] },
-        ],
-      },
-      {
-        id: 'q4',
-        hideAfter: 14,
-        frames: [
-          { t: 0, pos: [5.5, 0, FRONT_DOOR_Z + 2] },
-          { t: 3, pos: [-12, 0, -6] },
-          { t: 8, pos: [-26, 0, 3] },
-          { t: 12, pos: [-6, 0, FRONT_DOOR_Z + 4] },
-          { t: 14, pos: [-2, 0, FRONT_DOOR_Z - 6] },
-        ],
-      },
-      {
-        id: 'k1',
-        frames: [
-          { t: 0, pos: [-2.5, 0, BACK_DOOR_Z - 2] },
-          { t: 3, pos: [10, 0, 18] },
-          { t: 8, pos: [22, 0, -3] },
-          { t: duration, pos: [22, 0, -3] },
-        ],
-      },
-      {
-        id: 'k2',
-        frames: [
-          { t: 0, pos: [2.5, 0, BACK_DOOR_Z - 2] },
-          { t: 3, pos: [8, 0, 14] },
-          { t: 8, pos: [22, 0, 3] },
-          { t: duration, pos: [22, 0, 3] },
-        ],
-      },
-      {
-        id: 'k3',
-        frames: [
-          { t: 0, pos: [-5.5, 0, BACK_DOOR_Z - 2] },
-          { t: 3, pos: [14, 0, 10] },
-          { t: 8, pos: [26, 0, -3] },
-          { t: duration, pos: [26, 0, -3] },
-        ],
-      },
-      {
-        id: 'k4',
-        hideAfter: 14,
-        frames: [
-          { t: 0, pos: [5.5, 0, BACK_DOOR_Z - 2] },
-          { t: 3, pos: [12, 0, 6] },
-          { t: 8, pos: [26, 0, 3] },
-          { t: 12, pos: [6, 0, BACK_DOOR_Z - 4] },
-          { t: 14, pos: [2, 0, BACK_DOOR_Z + 6] },
-        ],
-      },
-    ],
-    [duration]
-  )
+  const guardConfigs = useMemo(() => {
+    const queenDoorZ = FRONT_DOOR_Z + 2
+    const kingDoorZ = BACK_DOOR_Z - 2
+    const queenStandby = [
+      [queenSeat[0] - 2.6, 0, queenSeat[2] - 4],
+      [queenSeat[0] + 2.2, 0, queenSeat[2] - 4],
+      [queenSeat[0] - 3.8, 0, queenSeat[2] + 1.6],
+      [queenSeat[0] + 0.6, 0, queenSeat[2] + 1.6],
+    ]
+    const kingStandby = [
+      [kingSeat[0] - 2.2, 0, kingSeat[2] - 4],
+      [kingSeat[0] + 2.6, 0, kingSeat[2] - 4],
+      [kingSeat[0] - 0.6, 0, kingSeat[2] + 1.6],
+      [kingSeat[0] + 3.8, 0, kingSeat[2] + 1.6],
+    ]
+
+    const buildGuard = (id, start, sweep, standby, returnToDoor = false) => {
+      const frames = [
+        { t: 0, pos: start },
+        { t: 3, pos: sweep },
+        { t: 8, pos: standby },
+      ]
+      if (returnToDoor) {
+        frames.push({ t: 12, pos: start })
+        frames.push({ t: duration, pos: start })
+      } else {
+        frames.push({ t: duration, pos: standby })
+      }
+      return { id, frames }
+    }
+
+    const queenOffsets = [-4, -2, 0, 2, 4]
+    const kingOffsets = [-4, -2, 0, 2, 4]
+
+    const queenGuards = [
+      buildGuard('q1', [queenOffsets[0], 0, queenDoorZ], [-8, 0, -18], queenStandby[0]),
+      buildGuard('q2', [queenOffsets[1], 0, queenDoorZ], [-6, 0, -14], queenStandby[1]),
+      buildGuard('q3', [queenOffsets[2], 0, queenDoorZ], [-4, 0, -10], queenStandby[2]),
+      buildGuard('q4', [queenOffsets[3], 0, queenDoorZ], [-2, 0, -12], queenStandby[3]),
+      buildGuard('q5', [queenOffsets[4], 0, queenDoorZ], [2, 0, -8], queenStandby[1], true),
+    ]
+
+    const kingGuards = [
+      buildGuard('k1', [kingOffsets[0], 0, kingDoorZ], [8, 0, 18], kingStandby[0]),
+      buildGuard('k2', [kingOffsets[1], 0, kingDoorZ], [6, 0, 14], kingStandby[1]),
+      buildGuard('k3', [kingOffsets[2], 0, kingDoorZ], [4, 0, 10], kingStandby[2]),
+      buildGuard('k4', [kingOffsets[3], 0, kingDoorZ], [2, 0, 12], kingStandby[3]),
+      buildGuard('k5', [kingOffsets[4], 0, kingDoorZ], [-2, 0, 8], kingStandby[0], true),
+    ]
+
+    return [...queenGuards, ...kingGuards]
+  }, [duration, kingSeat, queenSeat])
 
   useFrame(() => {
     const t = Math.min(timeRef.current, duration)
@@ -350,11 +325,7 @@ function GuardFormation({ timeRef, duration }) {
       const pos = interpolateKeyframes(guard.frames, t)
       ref.position.set(pos[0], pos[1], pos[2])
       ref.lookAt(0, 1, 0)
-      if (guard.hideAfter) {
-        ref.visible = t <= guard.hideAfter
-      } else {
-        ref.visible = true
-      }
+      ref.visible = true
     })
   })
 
@@ -404,125 +375,139 @@ export default function CastleHall() {
           onDone={() => setIntroDone(true)}
         />
         <CinematicCamera timeRef={introTime} duration={INTRO_DURATION} active={!introDone} />
-      <ambientLight intensity={0.36} />
-      <directionalLight
-        position={[20, 30, 12]}
-        intensity={1.6}
-        castShadow
-        shadow-mapSize-width={4096}
-        shadow-mapSize-height={4096}
-      />
-      <pointLight position={[0, 12, 0]} intensity={0.25} color="#b39ddb" />
+        <ambientLight intensity={0.36} />
+        <directionalLight
+          position={[20, 30, 12]}
+          intensity={1.6}
+          castShadow
+          shadow-mapSize-width={4096}
+          shadow-mapSize-height={4096}
+        />
+        <pointLight position={[0, 12, 0]} intensity={0.25} color="#b39ddb" />
 
-      <mesh scale={[140, 140, 140]}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <meshBasicMaterial color="#c9a850" side={1} />
-      </mesh>
-
-      <group>
-        {/* Floor */}
-        <mesh receiveShadow rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}>
-          <planeGeometry args={[80, 80]} />
-          <meshStandardMaterial color="#efd99d" metalness={0.7} roughness={0.35} />
+        <mesh scale={[140, 140, 140]}>
+          <sphereGeometry args={[1, 64, 64]} />
+          <meshBasicMaterial color="#c9a850" side={1} />
         </mesh>
 
-        {/* Golden walls */}
-        {[
-          { pos: [0, 12, -35], size: [80, 24, 0.8] },
-          { pos: [0, 12, 35], size: [80, 24, 0.8] },
-          { pos: [-35, 12, 0], size: [0.8, 24, 80] },
-          { pos: [35, 12, 0], size: [0.8, 24, 80] },
-        ].map((w, i) => (
-          <mesh key={i} position={w.pos}>
-            <boxGeometry args={w.size} />
-            <meshStandardMaterial color="#d9b14a" metalness={0.9} roughness={0.25} />
+        <group>
+          {/* Floor */}
+          <mesh receiveShadow rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}>
+            <planeGeometry args={[80, 80]} />
+            <meshStandardMaterial color="#efd99d" metalness={0.7} roughness={0.35} />
           </mesh>
-        ))}
 
-        {/* Roof */}
-        <mesh position={[0, 24, 0]}>
-          <boxGeometry args={[80, 1, 80]} />
-          <meshStandardMaterial color="#f6d870" metalness={0.9} roughness={0.2} />
-        </mesh>
-
-        {/* Correctly oriented windows on opposite walls (left/right) */}
-        {[[-25, 10, 0], [25, 10, 0]].map(([x, y, z], i) => (
-          <group key={i} position={[x, y, z]} rotation={[0, i === 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-            {[-15, 0, 15].map((zOff, j) => (
-              <group key={j} position={[0, 0, zOff]}>
-                <mesh rotation={[0, 0, Math.PI]}>
-                  <torusGeometry args={[2.5, 0.15, 16, 48, Math.PI]} />
-                  <meshStandardMaterial color="#ffd86b" metalness={0.95} roughness={0.2} />
-                </mesh>
-                <mesh position={[0, -0.5, 0]}>
-                  <planeGeometry args={[3.8, 5]} />
-                  <meshStandardMaterial color="#fff2c4" transparent opacity={0.22} />
-                </mesh>
-              </group>
-            ))}
-          </group>
-        ))}
-
-        {/* Double doors (front & back) */}
-        {[
-          { z: FRONT_DOOR_Z, rot: 0 },
-          { z: BACK_DOOR_Z, rot: Math.PI },
-        ].map((d, i) => (
-          <group key={i} position={[0, 5, d.z]} rotation={[0, d.rot, 0]}>
-            <Door position={[0, 0, 0]} rotation={[0, 0, 0]} timeRef={introTime} />
-          </group>
-        ))}
-
-        {/* Paintings beside doors */}
-        <Painting position={[-12, 10, -33]} />
-        <Painting position={[12, 10, -33]} />
-        <Painting position={[-12, 10, 33]} rotation={[0, Math.PI, 0]} />
-        <Painting position={[12, 10, 33]} rotation={[0, Math.PI, 0]} />
-
-        {/* Pillars & thrones */}
-        {[-28, -14, 14, 28].map((x, i) =>
-          [-28, -14, 14, 28].map((z, j) => (
-            <mesh key={`pillar-${i}-${j}`} position={[x, 12, z]} castShadow>
-              <cylinderGeometry args={[0.7, 0.8, 24, 20]} />
-              <meshStandardMaterial color="#e8ca74" metalness={0.9} roughness={0.18} />
+          {/* Golden walls */}
+          {[
+            { pos: [0, 12, -35], size: [80, 24, 0.8] },
+            { pos: [0, 12, 35], size: [80, 24, 0.8] },
+            { pos: [-35, 12, 0], size: [0.8, 24, 80] },
+            { pos: [35, 12, 0], size: [0.8, 24, 80] },
+          ].map((w, i) => (
+            <mesh key={i} position={w.pos}>
+              <boxGeometry args={w.size} />
+              <meshStandardMaterial color="#d9b14a" metalness={0.9} roughness={0.25} />
             </mesh>
-          ))
-        )}
-        <Throne position={[-24, 0, 0]} rotation={[0, Math.PI / 2, 0]} occupant="Queen" />
-        <Throne position={[24, 0, 0]} rotation={[0, -Math.PI / 2, 0]} occupant="King" />
+          ))}
 
-        {/* Decorations */}
-        {[
-          [-18, 0, -18],
-          [18, 0, -18],
-          [-18, 0, 18],
-          [18, 0, 18],
-        ].map((p, i) => (
-          <Crown key={`crown-${i}`} position={[p[0], 0.5, p[2]]} />
-        ))}
-        {[[-30, 3, 0], [30, 3, 0], [0, 3, -30], [0, 3, 30]].map((p, i) => (
-          <Torch key={`torch-${i}`} position={p} />
-        ))}
-      </group>
+          {/* Roof */}
+          <mesh position={[0, 24, 0]}>
+            <boxGeometry args={[80, 1, 80]} />
+            <meshStandardMaterial color="#f6d870" metalness={0.9} roughness={0.2} />
+          </mesh>
 
-      <RoyalProcession timeRef={introTime} duration={INTRO_DURATION} />
-      <GuardFormation timeRef={introTime} duration={INTRO_DURATION} />
-      <CaptureEscort
-        capture={activeCapture}
-        onComplete={() => setActiveCapture(null)}
-        dungeonPosition={DUNGEON_POSITION}
-      />
-      <Board disabled={!introDone} onCapture={handleCapture} />
+          {/* Correctly oriented windows on opposite walls (left/right) */}
+          {[[-25, 10, 0], [25, 10, 0]].map(([x, y, z], i) => (
+            <group key={i} position={[x, y, z]} rotation={[0, i === 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+              {[-15, 0, 15].map((zOff, j) => (
+                <group key={j} position={[0, 0, zOff]}>
+                  <mesh rotation={[0, 0, Math.PI]}>
+                    <torusGeometry args={[2.5, 0.15, 16, 48, Math.PI]} />
+                    <meshStandardMaterial color="#ffd86b" metalness={0.95} roughness={0.2} />
+                  </mesh>
+                  <mesh position={[0, -0.5, 0]}>
+                    <planeGeometry args={[3.8, 5]} />
+                    <meshStandardMaterial color="#fff2c4" transparent opacity={0.22} />
+                  </mesh>
+                </group>
+              ))}
+            </group>
+          ))}
 
-      <OrbitControls
-        enablePan={introDone}
-        enableZoom={introDone}
-        enableRotate={introDone}
-        minDistance={8}
-        maxDistance={160}
-        maxPolarAngle={Math.PI / 2.03}
-      />
-    </Canvas>
+          {/* Double doors (front & back) */}
+          {[
+            { z: FRONT_DOOR_Z, rot: 0 },
+            { z: BACK_DOOR_Z, rot: Math.PI },
+          ].map((d, i) => (
+            <group key={i} position={[0, 5, d.z]} rotation={[0, d.rot, 0]}>
+              <Door position={[0, 0, 0]} rotation={[0, 0, 0]} timeRef={introTime} />
+            </group>
+          ))}
+
+          {/* Paintings beside doors */}
+          <Painting position={[-12, 10, -33]} />
+          <Painting position={[12, 10, -33]} />
+          <Painting position={[-12, 10, 33]} rotation={[0, Math.PI, 0]} />
+          <Painting position={[12, 10, 33]} rotation={[0, Math.PI, 0]} />
+
+          {/* Pillars & thrones */}
+          {[-28, -14, 14, 28].map((x, i) =>
+            [-28, -14, 14, 28].map((z, j) => (
+              <mesh key={`pillar-${i}-${j}`} position={[x, 12, z]} castShadow>
+                <cylinderGeometry args={[0.7, 0.8, 24, 20]} />
+                <meshStandardMaterial color="#e8ca74" metalness={0.9} roughness={0.18} />
+              </mesh>
+            ))
+          )}
+          <mesh position={[0, 0.2, THRONE_Z + 1]} receiveShadow>
+            <boxGeometry args={[12, 0.4, 6]} />
+            <meshStandardMaterial color="#e6c56a" metalness={0.85} roughness={0.3} />
+          </mesh>
+          <Throne position={QUEEN_THRONE_POS} rotation={THRONE_ROTATION} scale={1.05} />
+          <Throne position={KING_THRONE_POS} rotation={THRONE_ROTATION} scale={1.25} />
+
+          {/* Decorations */}
+          {[
+            [-18, 0, -18],
+            [18, 0, -18],
+            [-18, 0, 18],
+            [18, 0, 18],
+          ].map((p, i) => (
+            <Crown key={`crown-${i}`} position={[p[0], 0.5, p[2]]} />
+          ))}
+          {[[-30, 3, 0], [30, 3, 0], [0, 3, -30], [0, 3, 30]].map((p, i) => (
+            <Torch key={`torch-${i}`} position={p} />
+          ))}
+        </group>
+
+        <RoyalProcession
+          timeRef={introTime}
+          duration={INTRO_DURATION}
+          kingSeat={KING_THRONE_POS}
+          queenSeat={QUEEN_THRONE_POS}
+        />
+        <GuardFormation
+          timeRef={introTime}
+          duration={INTRO_DURATION}
+          kingSeat={KING_THRONE_POS}
+          queenSeat={QUEEN_THRONE_POS}
+        />
+        <CaptureEscort
+          capture={activeCapture}
+          onComplete={() => setActiveCapture(null)}
+          dungeonPositions={DUNGEON_POSITIONS}
+        />
+        <Board disabled={!introDone} onCapture={handleCapture} />
+
+        <OrbitControls
+          enablePan={introDone}
+          enableZoom={introDone}
+          enableRotate={introDone}
+          minDistance={8}
+          maxDistance={160}
+          maxPolarAngle={Math.PI / 2.03}
+        />
+      </Canvas>
     </div>
   )
 }
