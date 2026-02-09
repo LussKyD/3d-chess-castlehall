@@ -9,13 +9,14 @@ import CaptureEscort from './CaptureEscort'
 const INTRO_DURATION = 16
 const FRONT_DOOR_Z = -34.6
 const BACK_DOOR_Z = 34.6
-const THRONE_Z = 26
-const KING_THRONE_POS = [6, 0, THRONE_Z]
-const QUEEN_THRONE_POS = [-6, 0, THRONE_Z]
-const THRONE_ROTATION = [0, Math.PI, 0]
+const KING_THRONE_POS = [10, 0, 0]
+const QUEEN_THRONE_POS = [-10, 0, 0]
+const KING_THRONE_ROTATION = [0, -Math.PI / 2, 0]
+const QUEEN_THRONE_ROTATION = [0, Math.PI / 2, 0]
+const DUNGEON_OFFSET_Z = 7.5
 const DUNGEON_POSITIONS = {
-  w: [-10, 0, 0],
-  b: [10, 0, 0],
+  w: [QUEEN_THRONE_POS[0], 0, DUNGEON_OFFSET_Z],
+  b: [KING_THRONE_POS[0], 0, -DUNGEON_OFFSET_Z],
 }
 
 function clamp(value, min, max) {
@@ -211,14 +212,24 @@ function RoyalProcession({ timeRef, duration, kingSeat, queenSeat }) {
   const kingRef = useRef()
   const queenRef = useRef()
   const seatYOffset = 0.2
-  const kingTarget = [kingSeat[0], kingSeat[1] + seatYOffset, kingSeat[2] - 0.6]
-  const queenTarget = [queenSeat[0], queenSeat[1] + seatYOffset, queenSeat[2] - 0.6]
+  const kingDirection = [-1, 0, 0]
+  const queenDirection = [1, 0, 0]
+  const kingTarget = [
+    kingSeat[0] + kingDirection[0] * 0.6,
+    kingSeat[1] + seatYOffset,
+    kingSeat[2] + kingDirection[2] * 0.6,
+  ]
+  const queenTarget = [
+    queenSeat[0] + queenDirection[0] * 0.6,
+    queenSeat[1] + seatYOffset,
+    queenSeat[2] + queenDirection[2] * 0.6,
+  ]
   const kingFrames = useMemo(
     () => [
       { t: 0, pos: [0, 0, BACK_DOOR_Z + 4] },
-      { t: 2.5, pos: [0, 0, BACK_DOOR_Z - 6] },
-      { t: 7, pos: [10, 0, 14] },
-      { t: 10.5, pos: [kingTarget[0], kingTarget[1], kingTarget[2] - 2.4] },
+      { t: 2.5, pos: [8, 0, BACK_DOOR_Z - 6] },
+      { t: 7, pos: [12, 0, 12] },
+      { t: 10.5, pos: [kingTarget[0], kingTarget[1], kingTarget[2] + 4] },
       { t: 12.5, pos: kingTarget },
       { t: duration, pos: kingTarget },
     ],
@@ -227,9 +238,9 @@ function RoyalProcession({ timeRef, duration, kingSeat, queenSeat }) {
   const queenFrames = useMemo(
     () => [
       { t: 0, pos: [0, 0, FRONT_DOOR_Z - 4] },
-      { t: 2.5, pos: [0, 0, FRONT_DOOR_Z + 6] },
-      { t: 7, pos: [-10, 0, -14] },
-      { t: 10.5, pos: [queenTarget[0], queenTarget[1], queenTarget[2] - 2.4] },
+      { t: 2.5, pos: [-8, 0, FRONT_DOOR_Z + 6] },
+      { t: 7, pos: [-12, 0, -12] },
+      { t: 10.5, pos: [queenTarget[0], queenTarget[1], queenTarget[2] - 4] },
       { t: 12.5, pos: queenTarget },
       { t: duration, pos: queenTarget },
     ],
@@ -268,16 +279,16 @@ function GuardFormation({ timeRef, duration, kingSeat, queenSeat }) {
     const queenDoorZ = FRONT_DOOR_Z + 2
     const kingDoorZ = BACK_DOOR_Z - 2
     const queenStandby = [
-      [queenSeat[0] - 2.6, 0, queenSeat[2] - 4],
-      [queenSeat[0] + 2.2, 0, queenSeat[2] - 4],
-      [queenSeat[0] - 3.8, 0, queenSeat[2] + 1.6],
-      [queenSeat[0] + 0.6, 0, queenSeat[2] + 1.6],
+      [queenSeat[0] - 4, 0, queenSeat[2] - 3],
+      [queenSeat[0] - 4, 0, queenSeat[2] + 3],
+      [queenSeat[0] - 1.5, 0, queenSeat[2] - 4],
+      [queenSeat[0] - 1.5, 0, queenSeat[2] + 4],
     ]
     const kingStandby = [
-      [kingSeat[0] - 2.2, 0, kingSeat[2] - 4],
-      [kingSeat[0] + 2.6, 0, kingSeat[2] - 4],
-      [kingSeat[0] - 0.6, 0, kingSeat[2] + 1.6],
-      [kingSeat[0] + 3.8, 0, kingSeat[2] + 1.6],
+      [kingSeat[0] + 4, 0, kingSeat[2] - 3],
+      [kingSeat[0] + 4, 0, kingSeat[2] + 3],
+      [kingSeat[0] + 1.5, 0, kingSeat[2] - 4],
+      [kingSeat[0] + 1.5, 0, kingSeat[2] + 4],
     ]
 
     const buildGuard = (id, start, sweep, standby, returnToDoor = false) => {
@@ -295,23 +306,23 @@ function GuardFormation({ timeRef, duration, kingSeat, queenSeat }) {
       return { id, frames }
     }
 
-    const queenOffsets = [-4, -2, 0, 2, 4]
-    const kingOffsets = [-4, -2, 0, 2, 4]
+    const queenOffsets = [-16, -14, -12, -10, -18]
+    const kingOffsets = [16, 14, 12, 10, 18]
 
     const queenGuards = [
-      buildGuard('q1', [queenOffsets[0], 0, queenDoorZ], [-8, 0, -18], queenStandby[0]),
-      buildGuard('q2', [queenOffsets[1], 0, queenDoorZ], [-6, 0, -14], queenStandby[1]),
-      buildGuard('q3', [queenOffsets[2], 0, queenDoorZ], [-4, 0, -10], queenStandby[2]),
-      buildGuard('q4', [queenOffsets[3], 0, queenDoorZ], [-2, 0, -12], queenStandby[3]),
-      buildGuard('q5', [queenOffsets[4], 0, queenDoorZ], [2, 0, -8], queenStandby[1], true),
+      buildGuard('q1', [queenOffsets[0], 0, queenDoorZ], [-18, 0, -18], queenStandby[0]),
+      buildGuard('q2', [queenOffsets[1], 0, queenDoorZ], [-16, 0, -14], queenStandby[1]),
+      buildGuard('q3', [queenOffsets[2], 0, queenDoorZ], [-14, 0, -10], queenStandby[2]),
+      buildGuard('q4', [queenOffsets[3], 0, queenDoorZ], [-12, 0, -8], queenStandby[3]),
+      buildGuard('q5', [queenOffsets[4], 0, queenDoorZ], [-10, 0, -12], queenStandby[1], true),
     ]
 
     const kingGuards = [
-      buildGuard('k1', [kingOffsets[0], 0, kingDoorZ], [8, 0, 18], kingStandby[0]),
-      buildGuard('k2', [kingOffsets[1], 0, kingDoorZ], [6, 0, 14], kingStandby[1]),
-      buildGuard('k3', [kingOffsets[2], 0, kingDoorZ], [4, 0, 10], kingStandby[2]),
-      buildGuard('k4', [kingOffsets[3], 0, kingDoorZ], [2, 0, 12], kingStandby[3]),
-      buildGuard('k5', [kingOffsets[4], 0, kingDoorZ], [-2, 0, 8], kingStandby[0], true),
+      buildGuard('k1', [kingOffsets[0], 0, kingDoorZ], [18, 0, 18], kingStandby[0]),
+      buildGuard('k2', [kingOffsets[1], 0, kingDoorZ], [16, 0, 14], kingStandby[1]),
+      buildGuard('k3', [kingOffsets[2], 0, kingDoorZ], [14, 0, 10], kingStandby[2]),
+      buildGuard('k4', [kingOffsets[3], 0, kingDoorZ], [12, 0, 8], kingStandby[3]),
+      buildGuard('k5', [kingOffsets[4], 0, kingDoorZ], [10, 0, 12], kingStandby[0], true),
     ]
 
     return [...queenGuards, ...kingGuards]
@@ -459,12 +470,14 @@ export default function CastleHall() {
               </mesh>
             ))
           )}
-          <mesh position={[0, 0.2, THRONE_Z + 1]} receiveShadow>
-            <boxGeometry args={[12, 0.4, 6]} />
-            <meshStandardMaterial color="#e6c56a" metalness={0.85} roughness={0.3} />
-          </mesh>
-          <Throne position={QUEEN_THRONE_POS} rotation={THRONE_ROTATION} scale={1.05} />
-          <Throne position={KING_THRONE_POS} rotation={THRONE_ROTATION} scale={1.25} />
+          {[QUEEN_THRONE_POS, KING_THRONE_POS].map((pos, index) => (
+            <mesh key={`dais-${index}`} position={[pos[0], 0.2, pos[2]]} receiveShadow>
+              <boxGeometry args={[6, 0.4, 6]} />
+              <meshStandardMaterial color="#e6c56a" metalness={0.85} roughness={0.3} />
+            </mesh>
+          ))}
+          <Throne position={QUEEN_THRONE_POS} rotation={QUEEN_THRONE_ROTATION} scale={1.05} />
+          <Throne position={KING_THRONE_POS} rotation={KING_THRONE_ROTATION} scale={1.25} />
 
           {/* Decorations */}
           {[
