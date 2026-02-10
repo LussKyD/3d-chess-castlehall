@@ -2,7 +2,6 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import * as THREE from 'three'
 import Board from './Board'
 import Character from './Character'
 import CaptureEscort from './CaptureEscort'
@@ -212,12 +211,7 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function HallFloor({ openProgressRef, paused, captureActive = false }) {
-  const hatchMeshRefs = useRef({ w: null, b: null })
-  const hatchMaterialRefs = useRef({ w: null, b: null })
-  const baseColor = useMemo(() => new THREE.Color('#efd99d'), [])
-  const xrayColor = useMemo(() => new THREE.Color('#8ca0d8'), [])
-  const xrayEmissive = useMemo(() => new THREE.Color('#4f63a0'), [])
+function HallFloor({ openProgressRef, captureActive = false }) {
   const holeDefs = useMemo(
     () => ({
       w: {
@@ -282,29 +276,8 @@ function HallFloor({ openProgressRef, paused, captureActive = false }) {
     return tiles
   }, [holeDefs])
 
-  useFrame(() => {
-    if (paused) return
-    const progressW = clamp(openProgressRef?.current?.w || 0, 0, 1)
-    const progressB = clamp(openProgressRef?.current?.b || 0, 0, 1)
-    ;[
-      { id: 'w', progress: progressW },
-      { id: 'b', progress: progressB },
-    ].forEach(({ id, progress }) => {
-      const material = hatchMaterialRefs.current[id]
-      const mesh = hatchMeshRefs.current[id]
-      if (!material || !mesh) return
-      const reveal = clamp(Math.max(progress, captureActive ? 0.2 : 0), 0, 1)
-      material.opacity = lerp(0.98, 0, reveal)
-      material.transparent = true
-      material.depthWrite = reveal < 0.02
-      material.depthTest = true
-      material.color.copy(baseColor).lerp(xrayColor, reveal * 0.95)
-      material.emissive.copy(xrayEmissive)
-      material.emissiveIntensity = reveal * 0.65
-      mesh.position.y = lerp(-0.048, -0.52, reveal)
-      mesh.visible = reveal < 0.14
-    })
-  })
+  const revealW = clamp(Math.max(openProgressRef?.current?.w || 0, captureActive ? 1 : 0), 0, 1)
+  const revealB = clamp(Math.max(openProgressRef?.current?.b || 0, captureActive ? 1 : 0), 0, 1)
 
   return (
     <group>
@@ -319,27 +292,23 @@ function HallFloor({ openProgressRef, paused, captureActive = false }) {
           <meshStandardMaterial color="#efd99d" metalness={0.7} roughness={0.35} />
         </mesh>
       ))}
-      {[holeDefs.w, holeDefs.b].map((hole) => (
-        <mesh
-          key={`hatch-${hole.id}`}
-          ref={(el) => (hatchMeshRefs.current[hole.id] = el)}
-          receiveShadow
-          rotation-x={-Math.PI / 2}
-          position={[hole.x, -0.048, hole.z]}
-        >
-          <planeGeometry args={[hole.width, hole.depth]} />
-          <meshStandardMaterial
-            ref={(el) => (hatchMaterialRefs.current[hole.id] = el)}
-            color="#efd99d"
-            emissive="#000000"
-            emissiveIntensity={0}
-            metalness={0.72}
-            roughness={0.34}
-            transparent
-            opacity={0.98}
-          />
-        </mesh>
-      ))}
+      {[
+        { hole: holeDefs.w, reveal: revealW },
+        { hole: holeDefs.b, reveal: revealB },
+      ].map(({ hole, reveal }) => {
+        if (reveal > 0.06) return null
+        return (
+          <mesh
+            key={`hatch-${hole.id}`}
+            receiveShadow
+            rotation-x={-Math.PI / 2}
+            position={[hole.x, -0.048, hole.z]}
+          >
+            <planeGeometry args={[hole.width, hole.depth]} />
+            <meshStandardMaterial color="#efd99d" metalness={0.72} roughness={0.34} />
+          </mesh>
+        )
+      })}
     </group>
   )
 }
@@ -613,7 +582,6 @@ export default function CastleHall() {
           {/* Floor */}
           <HallFloor
             openProgressRef={dungeonOpenRef}
-            paused={paused}
             captureActive={Boolean(activeCapture)}
           />
 
@@ -721,6 +689,7 @@ export default function CastleHall() {
           onComplete={() => setActiveCapture(null)}
           dungeonPositions={DUNGEON_POSITIONS}
           paused={paused}
+          captureActive={Boolean(activeCapture)}
           openProgressRef={dungeonOpenRef}
         />
         <Board

@@ -116,86 +116,43 @@ function buildSequence({ capture, dungeonPositions, homePositions }) {
   }
 }
 
-function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7a5b13' }) {
-  const frameRefs = useRef([])
+function DungeonEntrance({ position, openProgressRef, stairDir = 1, captureActive = false }) {
   const lightRef = useRef()
   const centerZ = stairDir * DUNGEON_VIEWPORT.forwardOffset
-  const edge = 0.22
 
   useFrame(() => {
-    const open = clamp(openProgressRef?.current || 0, 0, 1)
-    frameRefs.current.forEach((mesh) => {
-      if (!mesh?.material) return
-      mesh.material.opacity = lerp(0.92, 0.26, open)
-      mesh.material.emissiveIntensity = open * 0.45
-    })
+    const open = clamp(Math.max(openProgressRef?.current || 0, captureActive ? 1 : 0), 0, 1)
     if (lightRef.current) {
-      lightRef.current.intensity = 0.2 + open * 1.3
-      lightRef.current.distance = 6 + open * 8
+      lightRef.current.intensity = 0.35 + open * 1.7
+      lightRef.current.distance = 8 + open * 10
     }
   })
 
-  const strips = [
-    {
-      key: 'north',
-      pos: [0, 0.025, centerZ - DUNGEON_VIEWPORT.depth / 2 + edge / 2],
-      size: [DUNGEON_VIEWPORT.width + edge * 2, 0.05, edge],
-    },
-    {
-      key: 'south',
-      pos: [0, 0.025, centerZ + DUNGEON_VIEWPORT.depth / 2 - edge / 2],
-      size: [DUNGEON_VIEWPORT.width + edge * 2, 0.05, edge],
-    },
-    {
-      key: 'west',
-      pos: [-DUNGEON_VIEWPORT.width / 2 - edge / 2, 0.025, centerZ],
-      size: [edge, 0.05, DUNGEON_VIEWPORT.depth],
-    },
-    {
-      key: 'east',
-      pos: [DUNGEON_VIEWPORT.width / 2 + edge / 2, 0.025, centerZ],
-      size: [edge, 0.05, DUNGEON_VIEWPORT.depth],
-    },
-  ]
-
   return (
     <group position={position}>
-      {strips.map((strip, index) => (
-        <mesh key={strip.key} ref={(el) => (frameRefs.current[index] = el)} position={strip.pos} castShadow>
-          <boxGeometry args={strip.size} />
-          <meshStandardMaterial
-            color={accent}
-            emissive="#7a80ff"
-            emissiveIntensity={0}
-            metalness={0.65}
-            roughness={0.5}
-            transparent
-            opacity={0.92}
-          />
-        </mesh>
-      ))}
       <pointLight
         ref={lightRef}
-        position={[0, -1.6, centerZ + stairDir * 0.4]}
-        intensity={0.2}
+        position={[0, -1.3, centerZ + stairDir * 0.4]}
+        intensity={0.35}
         color="#a9b9ff"
-        distance={6}
+        distance={8}
         decay={1.8}
       />
     </group>
   )
 }
 
-function DungeonChamber({ position, stairDir = 1, openProgressRef }) {
+function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive = false }) {
   const stairLightRef = useRef()
   const cellLightRef = useRef()
   const fillLightRef = useRef()
+  const topLightRef = useRef()
   const chamberWidth = DUNGEON_VIEWPORT.width - 0.3
   const chamberStartZ = -1.25
   const chamberEndZ = chamberStartZ + DUNGEON_VIEWPORT.depth
   const chamberDepth = chamberEndZ - chamberStartZ
   const chamberCenterZ = (chamberStartZ + chamberEndZ) / 2
-  const floorY = -3.05
+  const floorY = -3.75
   const wallTopY = -0.22
   const wallHeight = wallTopY - floorY
   const wallY = floorY + wallHeight / 2
@@ -266,7 +223,7 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef }) {
   }, [floorMaterial, wallMaterial, stepMaterial, cellMaterial, barMaterial])
 
   useFrame(() => {
-    const open = clamp(openProgressRef?.current || 0, 0, 1)
+    const open = clamp(Math.max(openProgressRef?.current || 0, captureActive ? 1 : 0), 0, 1)
     if (stairLightRef.current) {
       stairLightRef.current.intensity = 0.55 + open * 1.7
       stairLightRef.current.distance = 8 + open * 9
@@ -278,6 +235,10 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef }) {
     if (fillLightRef.current) {
       fillLightRef.current.intensity = 0.25 + open * 0.95
       fillLightRef.current.distance = 10 + open * 10
+    }
+    if (topLightRef.current) {
+      topLightRef.current.intensity = 0.35 + open * 1.1
+      topLightRef.current.distance = 9 + open * 8
     }
     wallMaterial.opacity = lerp(0.96, 0.32, open)
     wallMaterial.emissiveIntensity = 0.08 + open * 0.34
@@ -396,6 +357,14 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef }) {
         distance={10}
         decay={2}
       />
+      <pointLight
+        ref={topLightRef}
+        position={[0, 0.8, chamberCenterZ]}
+        color="#d8e4ff"
+        intensity={0.35}
+        distance={9}
+        decay={2}
+      />
     </group>
   )
 }
@@ -405,6 +374,7 @@ export default function CaptureEscort({
   onComplete,
   dungeonPositions = { w: [-10, 0, 0], b: [10, 0, 0] },
   paused = false,
+  captureActive = false,
   openProgressRef,
 }) {
   const [prisonerPiece, setPrisonerPiece] = useState(null)
@@ -554,14 +524,26 @@ export default function CaptureEscort({
         position={dungeonPositions.w}
         stairDir={1}
         openProgressRef={whiteDoorProgress}
+        captureActive={captureActive}
       />
       <DungeonChamber
         position={dungeonPositions.b}
         stairDir={-1}
         openProgressRef={blackDoorProgress}
+        captureActive={captureActive}
       />
-      <DungeonEntrance position={dungeonPositions.w} openProgressRef={whiteDoorProgress} stairDir={1} />
-      <DungeonEntrance position={dungeonPositions.b} openProgressRef={blackDoorProgress} stairDir={-1} />
+      <DungeonEntrance
+        position={dungeonPositions.w}
+        openProgressRef={whiteDoorProgress}
+        stairDir={1}
+        captureActive={captureActive}
+      />
+      <DungeonEntrance
+        position={dungeonPositions.b}
+        openProgressRef={blackDoorProgress}
+        stairDir={-1}
+        captureActive={captureActive}
+      />
       <group ref={whiteGuardRef}>
         <Character role="guard" />
       </group>
