@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
 import Character from './Character'
 import Piece from './Piece'
 import {
@@ -188,75 +189,166 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
 function DungeonChamber({ position, stairDir = 1, openProgressRef }) {
   const stairLightRef = useRef()
   const cellLightRef = useRef()
-  const chamberWidth = 6.2
-  const chamberStartZ = -0.8
+  const fillLightRef = useRef()
+  const chamberWidth = DUNGEON_VIEWPORT.width - 0.3
+  const chamberStartZ = -1.25
   const chamberEndZ = chamberStartZ + DUNGEON_VIEWPORT.depth
   const chamberDepth = chamberEndZ - chamberStartZ
   const chamberCenterZ = (chamberStartZ + chamberEndZ) / 2
-  const floorY = -3.75
-  const wallHeight = 3.9
+  const floorY = -3.05
+  const wallTopY = -0.22
+  const wallHeight = wallTopY - floorY
   const wallY = floorY + wallHeight / 2
   const wallThickness = 0.26
   const cell = DUNGEON_MODEL_CONFIG.cell
   const lastStepY = STAIR_CONFIG.startY + (STAIR_CONFIG.count - 1) * STAIR_CONFIG.stepY
+  const floorMaterial = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: '#44566b', metalness: 0.1, roughness: 0.9 }),
+    []
+  )
+  const wallMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: '#60768f',
+        emissive: '#2f3d5c',
+        emissiveIntensity: 0.08,
+        metalness: 0.08,
+        roughness: 0.86,
+        transparent: true,
+        opacity: 0.96,
+      }),
+    []
+  )
+  const stepMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: '#6b7f95',
+        emissive: '#2d3650',
+        emissiveIntensity: 0.06,
+        metalness: 0.08,
+        roughness: 0.9,
+      }),
+    []
+  )
+  const cellMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: '#546a84',
+        emissive: '#28324a',
+        emissiveIntensity: 0.1,
+        metalness: 0.1,
+        roughness: 0.86,
+        transparent: true,
+        opacity: 0.95,
+      }),
+    []
+  )
+  const barMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: '#8d7b53',
+        emissive: '#4a3b1d',
+        emissiveIntensity: 0.12,
+        metalness: 0.62,
+        roughness: 0.45,
+      }),
+    []
+  )
+
+  useEffect(() => {
+    return () => {
+      floorMaterial.dispose()
+      wallMaterial.dispose()
+      stepMaterial.dispose()
+      cellMaterial.dispose()
+      barMaterial.dispose()
+    }
+  }, [floorMaterial, wallMaterial, stepMaterial, cellMaterial, barMaterial])
 
   useFrame(() => {
     const open = clamp(openProgressRef?.current || 0, 0, 1)
     if (stairLightRef.current) {
-      stairLightRef.current.intensity = 0.35 + open * 1.35
-      stairLightRef.current.distance = 7 + open * 7
+      stairLightRef.current.intensity = 0.55 + open * 1.7
+      stairLightRef.current.distance = 8 + open * 9
     }
     if (cellLightRef.current) {
-      cellLightRef.current.intensity = 0.45 + open * 1.95
-      cellLightRef.current.distance = 8 + open * 8
+      cellLightRef.current.intensity = 0.55 + open * 2.25
+      cellLightRef.current.distance = 9 + open * 10
     }
+    if (fillLightRef.current) {
+      fillLightRef.current.intensity = 0.25 + open * 0.95
+      fillLightRef.current.distance = 10 + open * 10
+    }
+    wallMaterial.opacity = lerp(0.96, 0.32, open)
+    wallMaterial.emissiveIntensity = 0.08 + open * 0.34
+    cellMaterial.opacity = lerp(0.95, 0.28, open)
+    cellMaterial.emissiveIntensity = 0.1 + open * 0.34
+    stepMaterial.emissiveIntensity = 0.06 + open * 0.2
+    barMaterial.emissiveIntensity = 0.12 + open * 0.28
   })
 
   return (
     <group position={position} rotation={stairDir === 1 ? [0, 0, 0] : [0, Math.PI, 0]}>
-      <mesh receiveShadow position={[0, floorY, chamberCenterZ]}>
+      <mesh receiveShadow position={[0, floorY, chamberCenterZ]} material={floorMaterial}>
         <boxGeometry args={[chamberWidth, 0.2, chamberDepth]} />
-        <meshStandardMaterial color="#44566b" metalness={0.1} roughness={0.9} />
       </mesh>
-      <mesh receiveShadow position={[-chamberWidth / 2 + wallThickness / 2, wallY, chamberCenterZ]}>
+      <mesh
+        receiveShadow
+        position={[-chamberWidth / 2 + wallThickness / 2, wallY, chamberCenterZ]}
+        material={wallMaterial}
+      >
         <boxGeometry args={[wallThickness, wallHeight, chamberDepth]} />
-        <meshStandardMaterial color="#60768f" metalness={0.08} roughness={0.86} />
       </mesh>
-      <mesh receiveShadow position={[chamberWidth / 2 - wallThickness / 2, wallY, chamberCenterZ]}>
+      <mesh
+        receiveShadow
+        position={[chamberWidth / 2 - wallThickness / 2, wallY, chamberCenterZ]}
+        material={wallMaterial}
+      >
         <boxGeometry args={[wallThickness, wallHeight, chamberDepth]} />
-        <meshStandardMaterial color="#60768f" metalness={0.08} roughness={0.86} />
       </mesh>
-      <mesh receiveShadow position={[0, wallY, chamberEndZ - wallThickness / 2]}>
+      <mesh receiveShadow position={[0, wallY, chamberEndZ - wallThickness / 2]} material={wallMaterial}>
         <boxGeometry args={[chamberWidth, wallHeight, wallThickness]} />
-        <meshStandardMaterial color="#5a6f88" metalness={0.08} roughness={0.86} />
       </mesh>
 
       {Array.from({ length: STAIR_CONFIG.count }).map((_, i) => {
         const stepY = STAIR_CONFIG.startY + i * STAIR_CONFIG.stepY
         const stepZ = STAIR_CONFIG.startZ + i * STAIR_CONFIG.stepZ
         return (
-          <mesh key={`step-${i}`} receiveShadow castShadow position={[0, stepY - 0.1, stepZ]}>
+          <mesh
+            key={`step-${i}`}
+            receiveShadow
+            castShadow
+            position={[0, stepY - 0.1, stepZ]}
+            material={stepMaterial}
+          >
             <boxGeometry args={[2.4, 0.2, 0.72]} />
-            <meshStandardMaterial color="#6b7f95" metalness={0.08} roughness={0.9} />
           </mesh>
         )
       })}
 
-      <mesh receiveShadow position={[0, CELL_BASE_Y, cell.offset]}>
+      <mesh receiveShadow position={[0, CELL_BASE_Y, cell.offset]} material={floorMaterial}>
         <boxGeometry args={[cell.width, 0.16, cell.depth]} />
-        <meshStandardMaterial color="#3f5065" metalness={0.08} roughness={0.9} />
       </mesh>
-      <mesh receiveShadow position={[0, lastStepY + cell.height / 2 - 1.1, cell.offset + cell.depth / 2]}>
+      <mesh
+        receiveShadow
+        position={[0, lastStepY + cell.height / 2 - 1.1, cell.offset + cell.depth / 2]}
+        material={cellMaterial}
+      >
         <boxGeometry args={[cell.width, cell.height, wallThickness]} />
-        <meshStandardMaterial color="#61758f" metalness={0.1} roughness={0.86} />
       </mesh>
-      <mesh receiveShadow position={[-cell.width / 2, lastStepY + cell.height / 2 - 1.1, cell.offset]}>
+      <mesh
+        receiveShadow
+        position={[-cell.width / 2, lastStepY + cell.height / 2 - 1.1, cell.offset]}
+        material={cellMaterial}
+      >
         <boxGeometry args={[wallThickness, cell.height, cell.depth]} />
-        <meshStandardMaterial color="#61758f" metalness={0.1} roughness={0.86} />
       </mesh>
-      <mesh receiveShadow position={[cell.width / 2, lastStepY + cell.height / 2 - 1.1, cell.offset]}>
+      <mesh
+        receiveShadow
+        position={[cell.width / 2, lastStepY + cell.height / 2 - 1.1, cell.offset]}
+        material={cellMaterial}
+      >
         <boxGeometry args={[wallThickness, cell.height, cell.depth]} />
-        <meshStandardMaterial color="#61758f" metalness={0.1} roughness={0.86} />
       </mesh>
 
       {Array.from({ length: 5 }).map((_, i) => {
@@ -266,32 +358,43 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef }) {
             key={`bar-${i}`}
             castShadow
             position={[x, lastStepY + cell.height / 2 - 1.1, cell.offset - cell.depth / 2]}
+            material={barMaterial}
           >
             <boxGeometry args={[0.1, cell.height * 0.9, 0.1]} />
-            <meshStandardMaterial color="#7f6f4a" metalness={0.62} roughness={0.45} />
           </mesh>
         )
       })}
-      <mesh castShadow position={[0, lastStepY + cell.height - 1.2, cell.offset - cell.depth / 2]}>
+      <mesh
+        castShadow
+        position={[0, lastStepY + cell.height - 1.2, cell.offset - cell.depth / 2]}
+        material={barMaterial}
+      >
         <boxGeometry args={[cell.width, 0.12, 0.12]} />
-        <meshStandardMaterial color="#8d7b53" metalness={0.62} roughness={0.45} />
       </mesh>
 
       <pointLight
         ref={stairLightRef}
-        position={[0, -1.55, STAIR_DEPTH * 0.45]}
+        position={[0, -1.25, STAIR_DEPTH * 0.45]}
         color="#9db4ff"
-        intensity={0.35}
-        distance={7}
+        intensity={0.55}
+        distance={8}
         decay={1.7}
       />
       <pointLight
         ref={cellLightRef}
-        position={[0, CELL_BASE_Y + 0.95, cell.offset + 0.2]}
+        position={[0, CELL_BASE_Y + 0.85, cell.offset + 0.2]}
         color="#ffb347"
-        intensity={0.45}
-        distance={8}
+        intensity={0.55}
+        distance={9}
         decay={1.6}
+      />
+      <pointLight
+        ref={fillLightRef}
+        position={[0, -0.9, chamberCenterZ]}
+        color="#8aa0c9"
+        intensity={0.25}
+        distance={10}
+        decay={2}
       />
     </group>
   )

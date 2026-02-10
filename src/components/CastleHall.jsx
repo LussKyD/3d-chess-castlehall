@@ -212,7 +212,7 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function HallFloor({ openProgressRef, paused }) {
+function HallFloor({ openProgressRef, paused, captureActive = false }) {
   const hatchMeshRefs = useRef({ w: null, b: null })
   const hatchMaterialRefs = useRef({ w: null, b: null })
   const baseColor = useMemo(() => new THREE.Color('#efd99d'), [])
@@ -293,14 +293,16 @@ function HallFloor({ openProgressRef, paused }) {
       const material = hatchMaterialRefs.current[id]
       const mesh = hatchMeshRefs.current[id]
       if (!material || !mesh) return
-      material.opacity = lerp(0.98, 0, progress)
+      const reveal = clamp(Math.max(progress, captureActive ? 0.2 : 0), 0, 1)
+      material.opacity = lerp(0.98, 0, reveal)
       material.transparent = true
-      material.depthWrite = progress < 0.02
+      material.depthWrite = reveal < 0.02
       material.depthTest = true
-      material.color.copy(baseColor).lerp(xrayColor, progress * 0.95)
+      material.color.copy(baseColor).lerp(xrayColor, reveal * 0.95)
       material.emissive.copy(xrayEmissive)
-      material.emissiveIntensity = progress * 0.65
-      mesh.position.y = lerp(-0.048, -0.42, progress)
+      material.emissiveIntensity = reveal * 0.65
+      mesh.position.y = lerp(-0.048, -0.52, reveal)
+      mesh.visible = reveal < 0.14
     })
   })
 
@@ -612,6 +614,7 @@ export default function CastleHall() {
           <HallFloor
             openProgressRef={dungeonOpenRef}
             paused={paused}
+            captureActive={Boolean(activeCapture)}
           />
 
           {/* Golden walls */}
