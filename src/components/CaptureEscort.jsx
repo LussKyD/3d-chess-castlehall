@@ -9,7 +9,7 @@ const ESCORT_TIME = 1.2
 const DROP_TIME = 0.9
 const RETURN_TIME = 1.1
 const TOTAL_TIME = APPROACH_TIME + ESCORT_TIME + DROP_TIME + RETURN_TIME
-const STAIR_DEPTH = 3
+const STAIR_DEPTH = 6
 const CAMERA_BLEND = 0.08
 
 function clamp(value, min, max) {
@@ -41,15 +41,18 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
     if (leftRef.current) leftRef.current.rotation.x = -angle
     if (rightRef.current) rightRef.current.rotation.x = angle
     if (floorMaterial.current) {
-      floorMaterial.current.opacity = lerp(1, 0.05, open)
-      floorMaterial.current.depthWrite = open < 0.35
+      floorMaterial.current.opacity = lerp(1, 0.02, open)
+      floorMaterial.current.depthWrite = open < 0.2
+      floorMaterial.current.depthTest = open < 0.2
     }
     if (cellMaterial.current) {
-      cellMaterial.current.opacity = lerp(1, 0.2, open)
+      cellMaterial.current.opacity = lerp(1, 0.15, open)
       cellMaterial.current.transparent = true
+      cellMaterial.current.emissive = new THREE.Color('#2b2f3a')
+      cellMaterial.current.emissiveIntensity = open * 0.45
     }
     if (lightRef.current) {
-      lightRef.current.intensity = open * 0.7
+      lightRef.current.intensity = open * 1.1
     }
   })
 
@@ -87,9 +90,9 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
           ))
         )}
       </group>
-      {Array.from({ length: 5 }).map((_, index) => {
-        const stepHeight = -0.25 - index * 0.28
-        const stepDepth = 0.6 + index * 0.3
+      {Array.from({ length: 10 }).map((_, index) => {
+        const stepHeight = -0.2 - index * 0.25
+        const stepDepth = 0.6 + index * 0.6
         return (
           <mesh
             key={`step-${index}`}
@@ -97,8 +100,8 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
             castShadow
             receiveShadow
           >
-            <boxGeometry args={[1.8, 0.18, 0.6]} />
-            <meshStandardMaterial color="#403229" metalness={0.15} roughness={0.8} />
+            <boxGeometry args={[2, 0.2, 0.65]} />
+            <meshStandardMaterial color="#4b3b2f" metalness={0.18} roughness={0.75} />
           </mesh>
         )
       })}
@@ -123,6 +126,7 @@ export default function CaptureEscort({
   capture,
   onComplete,
   dungeonPositions = { w: [-10, 0, 0], b: [10, 0, 0] },
+  paused = false,
 }) {
   const { camera } = useThree()
   const whiteGuardRef = useRef()
@@ -146,6 +150,7 @@ export default function CaptureEscort({
   }, [capture])
 
   useFrame(({ clock }) => {
+    if (paused) return
     const hasCapture = Boolean(capture)
     if (hasCapture && camera) {
       if (!cameraMemory.current) {
@@ -161,13 +166,13 @@ export default function CaptureEscort({
       const dungeonPosition = dungeonPositions[side]
       const viewTarget = new THREE.Vector3(
         dungeonPosition[0],
-        -1.1,
-        dungeonPosition[2] + stairDir * 1.8
+        -1.8,
+        dungeonPosition[2] + stairDir * 3
       )
       const viewPos = new THREE.Vector3(
-        dungeonPosition[0] + stairDir * 3.5,
-        18,
-        dungeonPosition[2] + stairDir * 6
+        dungeonPosition[0] + stairDir * 4.2,
+        22,
+        dungeonPosition[2] + stairDir * 8
       )
       camera.position.lerp(viewPos, CAMERA_BLEND)
       camera.lookAt(viewTarget)
@@ -230,10 +235,10 @@ export default function CaptureEscort({
       const dropT = (t - APPROACH_TIME - ESCORT_TIME) / DROP_TIME
       const p = smoothstep(dropT)
       guardPos = [dungeonPosition[0], dungeonPosition[1], dungeonPosition[2] + stairOffset]
-      guardYOffset = lerp(0, -0.8, p)
+      guardYOffset = lerp(0, -1.6, p)
       piecePos = [
         dungeonPosition[0],
-        lerp(0.4, -2.2, p),
+        lerp(0.4, -3.2, p),
         dungeonPosition[2] + stairOffset,
       ]
       openProgress = 1
@@ -242,8 +247,8 @@ export default function CaptureEscort({
       const p = smoothstep(returnT)
       const returnStart = [dungeonPosition[0], dungeonPosition[1], dungeonPosition[2] + stairOffset]
       guardPos = lerpVec(returnStart, homePos, p)
-      guardYOffset = lerp(-0.8, 0, p)
-      piecePos = [dungeonPosition[0], -2.2, dungeonPosition[2] + stairOffset]
+      guardYOffset = lerp(-1.6, 0, p)
+      piecePos = [dungeonPosition[0], -3.2, dungeonPosition[2] + stairOffset]
       openProgress = 1 - p
     }
 

@@ -19,7 +19,7 @@ function squareToWorld(square){
   return [x, 0.35, z]
 }
 
-export default function Board({ disabled = false, onCapture }){
+export default function Board({ disabled = false, onCapture, resetToken = 0 }){
   const gameRef = useRef(null)
   const [boardState, setBoardState] = useState([])
   const [selected, setSelected] = useState(null)
@@ -28,7 +28,9 @@ export default function Board({ disabled = false, onCapture }){
   useEffect(()=>{
     gameRef.current = createGame()
     setBoardState(gameRef.current.board())
-  },[])
+    setSelected(null)
+    setLegalMoves([])
+  },[resetToken])
 
   function handleSquareClick(square){
     if(disabled) return

@@ -49,11 +49,12 @@ function interpolateKeyframes(frames, t) {
   return frames[frames.length - 1].pos
 }
 
-function IntroTimeline({ timeRef, duration, skipped, onDone }) {
+function IntroTimeline({ timeRef, duration, skipped, onDone, paused }) {
   const doneRef = useRef(false)
 
   useFrame((_, delta) => {
     if (doneRef.current) return
+    if (paused) return
     if (skipped) {
       timeRef.current = duration
       doneRef.current = true
@@ -70,7 +71,7 @@ function IntroTimeline({ timeRef, duration, skipped, onDone }) {
   return null
 }
 
-function CinematicCamera({ timeRef, duration, active }) {
+function CinematicCamera({ timeRef, duration, active, paused }) {
   const { camera } = useThree()
   const frames = useMemo(
     () => [
@@ -84,6 +85,7 @@ function CinematicCamera({ timeRef, duration, active }) {
 
   useFrame(() => {
     if (!active) return
+    if (paused) return
     const t = Math.min(timeRef.current, duration)
     const pos = interpolateKeyframes(frames, t)
     camera.position.set(pos[0], pos[1], pos[2])
@@ -208,7 +210,7 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function RoyalProcession({ timeRef, duration, kingSeat, queenSeat }) {
+function RoyalProcession({ timeRef, duration, kingSeat, queenSeat, paused }) {
   const kingRef = useRef()
   const queenRef = useRef()
   const seatYOffset = 0.2
@@ -248,6 +250,7 @@ function RoyalProcession({ timeRef, duration, kingSeat, queenSeat }) {
   )
 
   useFrame(() => {
+    if (paused) return
     const t = Math.min(timeRef.current, duration)
     const kingPos = interpolateKeyframes(kingFrames, t)
     const queenPos = interpolateKeyframes(queenFrames, t)
@@ -273,7 +276,7 @@ function RoyalProcession({ timeRef, duration, kingSeat, queenSeat }) {
   )
 }
 
-function GuardFormation({ timeRef, duration, kingSeat, queenSeat }) {
+function GuardFormation({ timeRef, duration, kingSeat, queenSeat, paused }) {
   const guardRefs = useRef([])
   const guardConfigs = useMemo(() => {
     const queenDoorZ = FRONT_DOOR_Z + 2
@@ -329,6 +332,7 @@ function GuardFormation({ timeRef, duration, kingSeat, queenSeat }) {
   }, [duration, kingSeat, queenSeat])
 
   useFrame(() => {
+    if (paused) return
     const t = Math.min(timeRef.current, duration)
     guardConfigs.forEach((guard, index) => {
       const ref = guardRefs.current[index]
@@ -355,6 +359,9 @@ export default function CastleHall() {
   const introTime = useRef(0)
   const [introDone, setIntroDone] = useState(false)
   const [introSkipped, setIntroSkipped] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [quit, setQuit] = useState(false)
+  const [resetToken, setResetToken] = useState(0)
   const [captureQueue, setCaptureQueue] = useState([])
   const [activeCapture, setActiveCapture] = useState(null)
 
@@ -369,13 +376,50 @@ export default function CastleHall() {
     setCaptureQueue((prev) => [...prev, capture])
   }
 
+  function handleRestart() {
+    setResetToken((prev) => prev + 1)
+    setCaptureQueue([])
+    setActiveCapture(null)
+    setQuit(false)
+    setPaused(false)
+  }
+
   return (
     <div className="app">
-      {!introDone && (
-        <div className="ui-overlay">
+      <div className="ui-overlay">
+        {!introDone && (
           <button type="button" onClick={() => setIntroSkipped(true)}>
             Skip intro
           </button>
+        )}
+        <button type="button" onClick={() => setPaused((prev) => !prev)}>
+          {paused ? 'Resume' : 'Pause'}
+        </button>
+        <button type="button" onClick={handleRestart}>
+          Restart
+        </button>
+        <button type="button" onClick={() => setQuit(true)}>
+          Quit
+        </button>
+      </div>
+      {(paused || quit) && (
+        <div className="ui-modal">
+          <div className="ui-modal__panel">
+            <div className="ui-modal__title">{quit ? 'Game ended' : 'Paused'}</div>
+            <div className="ui-modal__subtitle">
+              {quit ? 'Restart to continue playing.' : 'Press Resume to continue.'}
+            </div>
+            <div className="ui-modal__actions">
+              {!quit && (
+                <button type="button" onClick={() => setPaused(false)}>
+                  Resume
+                </button>
+              )}
+              <button type="button" onClick={handleRestart}>
+                Restart
+              </button>
+            </div>
+          </div>
         </div>
       )}
       <Canvas shadows camera={{ position: [18, 14, 18], fov: 45 }}>
@@ -384,8 +428,14 @@ export default function CastleHall() {
           duration={INTRO_DURATION}
           skipped={introSkipped}
           onDone={() => setIntroDone(true)}
+          paused={paused}
         />
-        <CinematicCamera timeRef={introTime} duration={INTRO_DURATION} active={!introDone} />
+        <CinematicCamera
+          timeRef={introTime}
+          duration={INTRO_DURATION}
+          active={!introDone}
+          paused={paused}
+        />
         <ambientLight intensity={0.36} />
         <directionalLight
           position={[20, 30, 12]}
@@ -498,24 +548,31 @@ export default function CastleHall() {
           duration={INTRO_DURATION}
           kingSeat={KING_THRONE_POS}
           queenSeat={QUEEN_THRONE_POS}
+          paused={paused}
         />
         <GuardFormation
           timeRef={introTime}
           duration={INTRO_DURATION}
           kingSeat={KING_THRONE_POS}
           queenSeat={QUEEN_THRONE_POS}
+          paused={paused}
         />
         <CaptureEscort
           capture={activeCapture}
           onComplete={() => setActiveCapture(null)}
           dungeonPositions={DUNGEON_POSITIONS}
+        paused={paused}
         />
-        <Board disabled={!introDone} onCapture={handleCapture} />
+      <Board
+        disabled={!introDone || paused || quit || Boolean(activeCapture)}
+        onCapture={handleCapture}
+        resetToken={resetToken}
+      />
 
         <OrbitControls
-          enablePan={introDone && !activeCapture}
-          enableZoom={introDone && !activeCapture}
-          enableRotate={introDone && !activeCapture}
+        enablePan={introDone && !activeCapture && !quit}
+        enableZoom={introDone && !activeCapture && !quit}
+        enableRotate={introDone && !activeCapture && !quit}
           minDistance={8}
           maxDistance={160}
           maxPolarAngle={Math.PI / 2.03}
