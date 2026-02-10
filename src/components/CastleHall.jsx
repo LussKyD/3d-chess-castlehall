@@ -224,13 +224,13 @@ function HallFloor({ openProgressRef, paused }) {
       : 0
     const blended = clamp(progress, 0, 1)
     const material = materialRef.current
-    material.opacity = lerp(1, 0.2, blended)
+    material.opacity = lerp(1, 0.04, blended)
     material.transparent = blended > 0.001
-    material.depthWrite = blended < 0.08
+    material.depthWrite = blended < 0.03
     material.depthTest = true
-    material.color.copy(baseColor).lerp(xrayColor, blended * 0.85)
+    material.color.copy(baseColor).lerp(xrayColor, blended * 0.95)
     material.emissive.copy(xrayEmissive)
-    material.emissiveIntensity = blended * 0.35
+    material.emissiveIntensity = blended * 0.55
   })
 
   return (

@@ -167,6 +167,45 @@ function DungeonRoomModel({ position, stairDir = 1, openProgressRef }) {
       <Suspense fallback={null}>
         <DungeonRoomGeometry openProgressRef={openProgressRef} />
       </Suspense>
+      <DungeonRevealLights openProgressRef={openProgressRef} />
+    </group>
+  )
+}
+
+function DungeonRevealLights({ openProgressRef }) {
+  const stairLightRef = useRef()
+  const cellLightRef = useRef()
+
+  useFrame(() => {
+    const open = clamp(openProgressRef?.current || 0, 0, 1)
+    if (stairLightRef.current) {
+      stairLightRef.current.intensity = open * 1.35
+      stairLightRef.current.distance = 3.5 + open * 4.5
+    }
+    if (cellLightRef.current) {
+      cellLightRef.current.intensity = open * 1.95
+      cellLightRef.current.distance = 4 + open * 5
+    }
+  })
+
+  return (
+    <group>
+      <pointLight
+        ref={stairLightRef}
+        position={[0, -1.4, STAIR_DEPTH * 0.58]}
+        color="#a9b9ff"
+        intensity={0}
+        distance={0}
+        decay={1.8}
+      />
+      <pointLight
+        ref={cellLightRef}
+        position={[0, CELL_BASE_Y + 0.85, DUNGEON_MODEL_CONFIG.cell.offset + 0.35]}
+        color="#b39ddb"
+        intensity={0}
+        distance={0}
+        decay={1.7}
+      />
     </group>
   )
 }
@@ -174,8 +213,8 @@ function DungeonRoomModel({ position, stairDir = 1, openProgressRef }) {
 function DungeonRoomGeometry({ openProgressRef }) {
   const { scene } = useGLTF(DUNGEON_MODEL_PATH)
   const cloned = useMemo(() => scene.clone(true), [scene])
-  const xrayTint = useMemo(() => new THREE.Color('#9eaef8'), [])
-  const xrayEmissive = useMemo(() => new THREE.Color('#4a5fc2'), [])
+  const xrayTint = useMemo(() => new THREE.Color('#a8b8ff'), [])
+  const xrayEmissive = useMemo(() => new THREE.Color('#5a70d5'), [])
   const trackedMaterials = useMemo(() => {
     const materials = []
     cloned.traverse((child) => {
@@ -190,6 +229,7 @@ function DungeonRoomGeometry({ openProgressRef }) {
           material: next,
           baseOpacity: next.opacity ?? 1,
           baseTransparent: Boolean(next.transparent),
+          baseSide: next.side,
           baseColor: next.color ? next.color.clone() : null,
           baseEmissive:
             'emissive' in next && next.emissive ? next.emissive.clone() : new THREE.Color(0x000000),
@@ -205,19 +245,28 @@ function DungeonRoomGeometry({ openProgressRef }) {
 
   useFrame(() => {
     const open = clamp(openProgressRef?.current || 0, 0, 1)
-    const opacityFactor = lerp(1, 0.2, open)
+    const opacityFactor = lerp(1, 0.58, open)
     trackedMaterials.forEach((entry) => {
       const { material } = entry
       material.transparent = open > 0.01 || entry.baseTransparent
       material.opacity = entry.baseOpacity * opacityFactor
-      material.depthWrite = open < 0.08
+      material.depthWrite = true
+      material.depthTest = true
+
+      if ('side' in material) {
+        const side = open > 0.03 ? THREE.DoubleSide : entry.baseSide
+        if (material.side !== side) {
+          material.side = side
+          material.needsUpdate = true
+        }
+      }
 
       if (entry.baseColor && material.color) {
-        material.color.copy(entry.baseColor).lerp(xrayTint, open * 0.45)
+        material.color.copy(entry.baseColor).lerp(xrayTint, open * 0.75)
       }
       if ('emissive' in material && material.emissive) {
-        material.emissive.copy(entry.baseEmissive).lerp(xrayEmissive, open * 0.65)
-        material.emissiveIntensity = entry.baseEmissiveIntensity + open * 0.34
+        material.emissive.copy(entry.baseEmissive).lerp(xrayEmissive, open * 0.8)
+        material.emissiveIntensity = entry.baseEmissiveIntensity + open * 0.85
       }
     })
   })
