@@ -12,6 +12,7 @@ import {
   DUNGEON_VIEWPORT,
 } from '../config/dungeon'
 
+const APPROACH_TIME = 0.45
 const GRAB_TIME = 0.25
 const ESCORT_TIME = 0.9
 const STEP_FORWARD_TIME = 0.12
@@ -58,16 +59,22 @@ function createThrowSegment(from, to, duration, open, arc = 0.6, extras = {}) {
   return { type: 'throw', from, to, duration, carry: false, open, arc, ...extras }
 }
 
-function buildSequence({ capture, dungeonPositions }) {
+function buildSequence({ capture, dungeonPositions, homePositions }) {
   const side = capture.capturingColor || 'w'
   const stairDir = side === 'w' ? 1 : -1
   const dungeon = dungeonPositions[side]
   const start = [capture.position[0], 0, capture.position[2]]
-  const home = [capture.position[0], 0, capture.position[2]]
+  const home = homePositions[side]
   const stairEntry = [dungeon[0], 0, dungeon[2]]
   const steps = buildStairSteps()
   const segments = []
 
+  segments.push(
+    createMoveSegment(home, start, APPROACH_TIME, false, 0, {
+      phase: 'approach',
+      footstep: true,
+    })
+  )
   segments.push(createMoveSegment(start, start, GRAB_TIME, true, 0, { phase: 'grab' }))
   segments.push(
     createMoveSegment(start, stairEntry, ESCORT_TIME, true, 1, {
@@ -176,39 +183,54 @@ function buildSequence({ capture, dungeonPositions }) {
   }
 }
 
-function DungeonEntrance({ position, openProgressRef, stairDir = 1, captureActive = false }) {
+function DungeonEntrance({ position, openProgressRef, stairDir = 1 }) {
+  const leftDoorRef = useRef()
+  const rightDoorRef = useRef()
   const lightRef = useRef()
   const centerZ = stairDir * DUNGEON_VIEWPORT.forwardOffset
 
   useFrame(() => {
-    const open = clamp(Math.max(openProgressRef?.current || 0, captureActive ? 1 : 0), 0, 1)
+    const open = clamp(openProgressRef?.current || 0, 0, 1)
+    const angle = open * Math.PI * 0.48
+    if (leftDoorRef.current) leftDoorRef.current.rotation.x = -angle
+    if (rightDoorRef.current) rightDoorRef.current.rotation.x = angle
     if (lightRef.current) {
-      lightRef.current.intensity = 0.35 + open * 1.7
-      lightRef.current.distance = 8 + open * 10
+      lightRef.current.intensity = 0.15 + open * 1.45
+      lightRef.current.distance = 7 + open * 9
     }
   })
 
   return (
     <group position={position}>
+      <mesh receiveShadow position={[0, 0.025, centerZ]}>
+        <boxGeometry args={[3.8, 0.06, 3.3]} />
+        <meshStandardMaterial color="#6a5729" metalness={0.6} roughness={0.5} />
+      </mesh>
+      <group ref={leftDoorRef} position={[-0.95, 0.08, centerZ]}>
+        <mesh castShadow position={[0.95, 0, 0]}>
+          <boxGeometry args={[1.9, 0.08, 3]} />
+          <meshStandardMaterial color="#8a6b2f" metalness={0.7} roughness={0.45} />
+        </mesh>
+      </group>
+      <group ref={rightDoorRef} position={[0.95, 0.08, centerZ]}>
+        <mesh castShadow position={[-0.95, 0, 0]}>
+          <boxGeometry args={[1.9, 0.08, 3]} />
+          <meshStandardMaterial color="#8a6b2f" metalness={0.7} roughness={0.45} />
+        </mesh>
+      </group>
       <pointLight
         ref={lightRef}
-        position={[0, -1.3, centerZ + stairDir * 0.4]}
-        intensity={0.35}
-        color="#a9b9ff"
-        distance={8}
+        position={[0, -1.35, centerZ + stairDir * 0.42]}
+        intensity={0.15}
+        color="#8fa5ff"
+        distance={7}
         decay={1.8}
       />
     </group>
   )
 }
 
-function DungeonChamber({
-  position,
-  stairDir = 1,
-  openProgressRef,
-  gateProgressRef,
-  captureActive = false,
-}) {
+function DungeonChamber({ position, stairDir = 1, openProgressRef, gateProgressRef }) {
   const stairLightRef = useRef()
   const cellLightRef = useRef()
   const fillLightRef = useRef()
@@ -293,7 +315,7 @@ function DungeonChamber({
   }, [floorMaterial, wallMaterial, stepMaterial, cellMaterial, barMaterial])
 
   useFrame(() => {
-    const open = clamp(Math.max(openProgressRef?.current || 0, captureActive ? 1 : 0), 0, 1)
+    const open = clamp(openProgressRef?.current || 0, 0, 1)
     const gateClosed = clamp(gateProgressRef?.current ?? 1, 0, 1)
     const cutaway = open > 0.18
     ;[leftWallRef.current, rightWallRef.current, backWallRef.current].forEach((mesh) => {
@@ -459,14 +481,14 @@ export default function CaptureEscort({
   onComplete,
   dungeonPositions = { w: [-10, 0, 0], b: [10, 0, 0] },
   paused = false,
-  captureActive = false,
-  onTrackingUpdate,
   openProgressRef,
 }) {
   const [prisonerPiece, setPrisonerPiece] = useState(null)
   const [capturedPieces, setCapturedPieces] = useState({ w: [], b: [] })
-  const whiteGuardRef = useRef()
-  const blackGuardRef = useRef()
+  const whiteEscortRef = useRef()
+  const blackEscortRef = useRef()
+  const whiteSentinelRef = useRef()
+  const blackSentinelRef = useRef()
   const pieceRef = useRef()
   const sequenceRef = useRef(null)
   const whiteDoorProgress = useRef(0)
@@ -477,19 +499,37 @@ export default function CaptureEscort({
   const audioContextRef = useRef(null)
 
   const homePositions = useMemo(
+    () => {
+      const toBoard = (from) => {
+        const dx = -from[0]
+        const dz = -from[2]
+        const len = Math.hypot(dx, dz) || 1
+        return [dx / len, dz / len]
+      }
+      const [wx, wz] = toBoard(dungeonPositions.w)
+      const [bx, bz] = toBoard(dungeonPositions.b)
+      return {
+        w: [dungeonPositions.w[0] + wx * 5.4, 0, dungeonPositions.w[2] + wz * 5.4],
+        b: [dungeonPositions.b[0] + bx * 5.4, 0, dungeonPositions.b[2] + bz * 5.4],
+      }
+    },
+    [dungeonPositions.b, dungeonPositions.w]
+  )
+
+  const sentinelPositions = useMemo(
     () => ({
-      w: [dungeonPositions.w[0] - 2.2, 0, dungeonPositions.w[2] + 2],
-      b: [dungeonPositions.b[0] + 2.2, 0, dungeonPositions.b[2] + 2],
+      w: [dungeonPositions.w[0] - 2.15, 0, dungeonPositions.w[2] + DUNGEON_VIEWPORT.forwardOffset - 1],
+      b: [dungeonPositions.b[0] + 2.15, 0, dungeonPositions.b[2] - DUNGEON_VIEWPORT.forwardOffset + 1],
     }),
-    [dungeonPositions]
+    [dungeonPositions.b, dungeonPositions.w]
   )
 
   useEffect(() => {
     if (!capture) return
     setPrisonerPiece(capture.piece)
-    sequenceRef.current = buildSequence({ capture, dungeonPositions })
+    sequenceRef.current = buildSequence({ capture, dungeonPositions, homePositions })
     prevSegmentRef.current = { side: null, index: -1 }
-  }, [capture, dungeonPositions])
+  }, [capture, dungeonPositions, homePositions])
 
   function ensureAudioContext() {
     if (typeof window === 'undefined') return null
@@ -560,19 +600,29 @@ export default function CaptureEscort({
   useFrame((state, delta) => {
     if (paused) return
 
-    const guards = {
-      w: whiteGuardRef.current,
-      b: blackGuardRef.current,
+    const escorts = {
+      w: whiteEscortRef.current,
+      b: blackEscortRef.current,
+    }
+    const sentinels = {
+      w: whiteSentinelRef.current,
+      b: blackSentinelRef.current,
     }
 
-    if (!guards.w || !guards.b) return
+    if (!escorts.w || !escorts.b || !sentinels.w || !sentinels.b) return
 
-    guards.w.visible = false
-    guards.b.visible = false
-    guards.w.position.set(homePositions.w[0], homePositions.w[1], homePositions.w[2])
-    guards.b.position.set(homePositions.b[0], homePositions.b[1], homePositions.b[2])
-    guards.w.lookAt(0, 1, 0)
-    guards.b.lookAt(0, 1, 0)
+    escorts.w.visible = true
+    escorts.b.visible = true
+    escorts.w.position.set(homePositions.w[0], homePositions.w[1], homePositions.w[2])
+    escorts.b.position.set(homePositions.b[0], homePositions.b[1], homePositions.b[2])
+    escorts.w.lookAt(0, 1, 0)
+    escorts.b.lookAt(0, 1, 0)
+    sentinels.w.visible = true
+    sentinels.b.visible = true
+    sentinels.w.position.set(sentinelPositions.w[0], sentinelPositions.w[1], sentinelPositions.w[2])
+    sentinels.b.position.set(sentinelPositions.b[0], sentinelPositions.b[1], sentinelPositions.b[2])
+    sentinels.w.lookAt(0, 1, 0)
+    sentinels.b.lookAt(0, 1, 0)
 
     whiteDoorProgress.current = lerp(whiteDoorProgress.current, 0, 0.24)
     blackDoorProgress.current = lerp(blackDoorProgress.current, 0, 0.24)
@@ -581,7 +631,6 @@ export default function CaptureEscort({
 
     const sequence = sequenceRef.current
     if (!sequence) {
-      if (onTrackingUpdate) onTrackingUpdate(null)
       if (openProgressRef?.current) {
         openProgressRef.current.w = whiteDoorProgress.current
         openProgressRef.current.b = blackDoorProgress.current
@@ -592,7 +641,6 @@ export default function CaptureEscort({
     const segment = sequence.segments[sequence.index]
     if (!segment) {
       sequenceRef.current = null
-      if (onTrackingUpdate) onTrackingUpdate(null)
       if (onComplete) onComplete()
       return
     }
@@ -638,7 +686,7 @@ export default function CaptureEscort({
       prisonerPos = sequence.prisonerFixed
     }
 
-    const activeGuard = sequence.side === 'w' ? guards.w : guards.b
+    const activeGuard = sequence.side === 'w' ? escorts.w : escorts.b
     activeGuard.visible = true
     activeGuard.position.set(guardPos[0], guardPos[1], guardPos[2])
     const moveX = segment.to[0] - segment.from[0]
@@ -694,17 +742,6 @@ export default function CaptureEscort({
       pieceRef.current.visible = false
     }
 
-    if (onTrackingUpdate) {
-      onTrackingUpdate({
-        side: sequence.side,
-        phase: segment.phase || segment.type,
-        guard: guardPos,
-        prisoner: prisonerPos,
-        open: sequence.open,
-        gate: sequence.side === 'w' ? whiteGateProgress.current : blackGateProgress.current,
-      })
-    }
-
     if (openProgressRef?.current) {
       openProgressRef.current.w = whiteDoorProgress.current
       openProgressRef.current.b = blackDoorProgress.current
@@ -718,31 +755,33 @@ export default function CaptureEscort({
         stairDir={1}
         openProgressRef={whiteDoorProgress}
         gateProgressRef={whiteGateProgress}
-        captureActive={captureActive}
       />
       <DungeonChamber
         position={dungeonPositions.b}
         stairDir={-1}
         openProgressRef={blackDoorProgress}
         gateProgressRef={blackGateProgress}
-        captureActive={captureActive}
       />
       <DungeonEntrance
         position={dungeonPositions.w}
         openProgressRef={whiteDoorProgress}
         stairDir={1}
-        captureActive={captureActive}
       />
       <DungeonEntrance
         position={dungeonPositions.b}
         openProgressRef={blackDoorProgress}
         stairDir={-1}
-        captureActive={captureActive}
       />
-      <group ref={whiteGuardRef}>
+      <group ref={whiteEscortRef}>
         <Character role="guard" />
       </group>
-      <group ref={blackGuardRef}>
+      <group ref={blackEscortRef}>
+        <Character role="guard" />
+      </group>
+      <group ref={whiteSentinelRef}>
+        <Character role="guard" />
+      </group>
+      <group ref={blackSentinelRef}>
         <Character role="guard" />
       </group>
       {capturedPieces.w.map((piece, index) => (

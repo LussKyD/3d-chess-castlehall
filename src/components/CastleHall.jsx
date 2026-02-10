@@ -443,7 +443,6 @@ export default function CastleHall() {
   const [captureQueue, setCaptureQueue] = useState([])
   const [activeCapture, setActiveCapture] = useState(null)
   const dungeonOpenRef = useRef({ w: 0, b: 0 })
-  const captureTrackRef = useRef(null)
 
   const overlayStyle = {
     position: 'absolute',
@@ -537,11 +536,6 @@ export default function CastleHall() {
           duration={INTRO_DURATION}
           skipped={introSkipped}
           onDone={() => setIntroDone(true)}
-          paused={paused}
-        />
-        <CaptureFollowCamera
-          trackRef={captureTrackRef}
-          active={Boolean(activeCapture)}
           paused={paused}
         />
         <ambientLight intensity={0.36} />
@@ -671,10 +665,6 @@ export default function CastleHall() {
           onComplete={() => setActiveCapture(null)}
           dungeonPositions={DUNGEON_POSITIONS}
           paused={paused}
-          captureActive={Boolean(activeCapture)}
-          onTrackingUpdate={(track) => {
-            captureTrackRef.current = track
-          }}
           openProgressRef={dungeonOpenRef}
         />
         <Board
@@ -684,9 +674,9 @@ export default function CastleHall() {
         />
 
         <OrbitControls
-          enablePan={!quit && !activeCapture}
-          enableZoom={!quit && !activeCapture}
-          enableRotate={!quit && !activeCapture}
+          enablePan={!quit}
+          enableZoom={!quit}
+          enableRotate={!quit}
           minDistance={8}
           maxDistance={160}
           maxPolarAngle={Math.PI / 2.03}
