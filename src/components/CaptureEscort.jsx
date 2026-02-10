@@ -191,31 +191,37 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1 }) {
 
   useFrame(() => {
     const open = clamp(openProgressRef?.current || 0, 0, 1)
-    const angle = open * Math.PI * 0.48
+    const angle = open * Math.PI * 0.56
     if (leftDoorRef.current) leftDoorRef.current.rotation.x = -angle
     if (rightDoorRef.current) rightDoorRef.current.rotation.x = angle
+    if (leftDoorRef.current) leftDoorRef.current.position.y = lerp(0.1, -0.25, open)
+    if (rightDoorRef.current) rightDoorRef.current.position.y = lerp(0.1, -0.25, open)
     if (lightRef.current) {
-      lightRef.current.intensity = 0.15 + open * 1.45
-      lightRef.current.distance = 7 + open * 9
+      lightRef.current.intensity = 0.18 + open * 1.55
+      lightRef.current.distance = 8 + open * 9
     }
   })
 
   return (
     <group position={position}>
-      <mesh receiveShadow position={[0, 0.025, centerZ]}>
-        <boxGeometry args={[3.8, 0.06, 3.3]} />
+      <mesh receiveShadow position={[0, -0.14, centerZ]}>
+        <boxGeometry args={[4.2, 0.26, 3.7]} />
+        <meshStandardMaterial color="#2f2818" metalness={0.2} roughness={0.85} />
+      </mesh>
+      <mesh receiveShadow position={[0, 0.03, centerZ]}>
+        <boxGeometry args={[4.35, 0.08, 3.85]} />
         <meshStandardMaterial color="#6a5729" metalness={0.6} roughness={0.5} />
       </mesh>
-      <group ref={leftDoorRef} position={[-0.95, 0.08, centerZ]}>
+      <group ref={leftDoorRef} position={[-1.02, 0.1, centerZ]}>
         <mesh castShadow position={[0.95, 0, 0]}>
-          <boxGeometry args={[1.9, 0.08, 3]} />
-          <meshStandardMaterial color="#8a6b2f" metalness={0.7} roughness={0.45} />
+          <boxGeometry args={[1.95, 0.14, 3.1]} />
+          <meshStandardMaterial color="#8a6b2f" metalness={0.78} roughness={0.35} />
         </mesh>
       </group>
-      <group ref={rightDoorRef} position={[0.95, 0.08, centerZ]}>
+      <group ref={rightDoorRef} position={[1.02, 0.1, centerZ]}>
         <mesh castShadow position={[-0.95, 0, 0]}>
-          <boxGeometry args={[1.9, 0.08, 3]} />
-          <meshStandardMaterial color="#8a6b2f" metalness={0.7} roughness={0.45} />
+          <boxGeometry args={[1.95, 0.14, 3.1]} />
+          <meshStandardMaterial color="#8a6b2f" metalness={0.78} roughness={0.35} />
         </mesh>
       </group>
       <pointLight
@@ -499,29 +505,21 @@ export default function CaptureEscort({
   const audioContextRef = useRef(null)
 
   const homePositions = useMemo(
-    () => {
-      const toBoard = (from) => {
-        const dx = -from[0]
-        const dz = -from[2]
-        const len = Math.hypot(dx, dz) || 1
-        return [dx / len, dz / len]
-      }
-      const [wx, wz] = toBoard(dungeonPositions.w)
-      const [bx, bz] = toBoard(dungeonPositions.b)
-      return {
-        w: [dungeonPositions.w[0] + wx * 5.4, 0, dungeonPositions.w[2] + wz * 5.4],
-        b: [dungeonPositions.b[0] + bx * 5.4, 0, dungeonPositions.b[2] + bz * 5.4],
-      }
-    },
-    [dungeonPositions.b, dungeonPositions.w]
+    () => ({
+      // Escort guards wait beside the board edge and only move during captures.
+      w: [dungeonPositions.w[0] + 4.6, 0, dungeonPositions.w[2] - 1.4],
+      b: [dungeonPositions.b[0] - 4.6, 0, dungeonPositions.b[2] + 1.4],
+    }),
+    [dungeonPositions]
   )
 
   const sentinelPositions = useMemo(
     () => ({
-      w: [dungeonPositions.w[0] - 2.15, 0, dungeonPositions.w[2] + DUNGEON_VIEWPORT.forwardOffset - 1],
-      b: [dungeonPositions.b[0] + 2.15, 0, dungeonPositions.b[2] - DUNGEON_VIEWPORT.forwardOffset + 1],
+      // Dedicated sentinels stand by the hatch doors and never escort.
+      w: [dungeonPositions.w[0] - 2.2, 0, dungeonPositions.w[2] + DUNGEON_VIEWPORT.forwardOffset - 0.3],
+      b: [dungeonPositions.b[0] + 2.2, 0, dungeonPositions.b[2] - DUNGEON_VIEWPORT.forwardOffset + 0.3],
     }),
-    [dungeonPositions.b, dungeonPositions.w]
+    [dungeonPositions]
   )
 
   useEffect(() => {
@@ -773,16 +771,16 @@ export default function CaptureEscort({
         stairDir={-1}
       />
       <group ref={whiteEscortRef}>
-        <Character role="guard" />
+        <Character role="guard" tint="#5d6b84" />
       </group>
       <group ref={blackEscortRef}>
-        <Character role="guard" />
+        <Character role="guard" tint="#5d6b84" />
       </group>
       <group ref={whiteSentinelRef}>
-        <Character role="guard" />
+        <Character role="guard" tint="#d9be78" />
       </group>
       <group ref={blackSentinelRef}>
-        <Character role="guard" />
+        <Character role="guard" tint="#d9be78" />
       </group>
       {capturedPieces.w.map((piece, index) => (
         <Piece

@@ -1,6 +1,6 @@
 // src/components/CastleHall.jsx
 import React, { useMemo, useRef, useState, useEffect } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import Board from './Board'
@@ -67,30 +67,6 @@ function IntroTimeline({ timeRef, duration, skipped, onDone, paused }) {
       doneRef.current = true
       if (onDone) onDone()
     }
-  })
-
-  return null
-}
-
-function CinematicCamera({ timeRef, duration, active, paused }) {
-  const { camera } = useThree()
-  const frames = useMemo(
-    () => [
-      { t: 0, pos: [32, 18, 0] },
-      { t: 5, pos: [26, 17, 8] },
-      { t: 10, pos: [20, 16, 16] },
-      { t: duration, pos: [18, 14, 18] },
-    ],
-    [duration]
-  )
-
-  useFrame(() => {
-    if (!active) return
-    if (paused) return
-    const t = Math.min(timeRef.current, duration)
-    const pos = interpolateKeyframes(frames, t)
-    camera.position.set(pos[0], pos[1], pos[2])
-    camera.lookAt(0, 5, 0)
   })
 
   return null
@@ -248,44 +224,6 @@ function HallFloor({ openProgressRef, captureActive = false, paused = false }) {
       />
     </mesh>
   )
-}
-
-function CaptureFollowCamera({ trackRef, active, paused }) {
-  const { camera } = useThree()
-  const desiredPos = useRef(new THREE.Vector3())
-  const desiredLook = useRef(new THREE.Vector3())
-
-  useFrame((_, delta) => {
-    if (!active || paused) return
-    const track = trackRef.current
-    if (!track?.guard) return
-    const [gx, gy, gz] = track.guard
-    const prisoner = track.prisoner || track.guard
-    const focusX = (gx + prisoner[0]) * 0.5
-    const focusY = Math.max(0.8, (gy + prisoner[1]) * 0.5 + 0.55)
-    const focusZ = (gz + prisoner[2]) * 0.5
-    const sideSign = track.side === 'w' ? -1 : 1
-    const inDungeon =
-      gy < -0.2 ||
-      String(track.phase || '').includes('stairs') ||
-      String(track.phase || '').includes('cell') ||
-      ['push', 'throw', 'gate-slam'].includes(track.phase)
-    const height = inDungeon ? 2.2 : 4.8
-    const back = inDungeon ? 2.2 : 5.4
-    const lateral = inDungeon ? 1.7 : 2.4
-
-    desiredPos.current.set(
-      focusX + lateral * sideSign,
-      focusY + height,
-      focusZ - back * sideSign
-    )
-    desiredLook.current.set(focusX, focusY, focusZ)
-    const blend = 1 - Math.exp(-delta * 4.2)
-    camera.position.lerp(desiredPos.current, blend)
-    camera.lookAt(desiredLook.current)
-  })
-
-  return null
 }
 
 function RoyalProcession({ timeRef, duration, kingSeat, queenSeat, paused }) {
