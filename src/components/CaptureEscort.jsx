@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import Character from './Character'
 import Piece from './Piece'
 import * as THREE from 'three'
@@ -10,7 +10,6 @@ const DROP_TIME = 0.9
 const RETURN_TIME = 1.1
 const TOTAL_TIME = APPROACH_TIME + ESCORT_TIME + DROP_TIME + RETURN_TIME
 const STAIR_DEPTH = 7.2
-const CAMERA_BLEND = 0.08
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
@@ -132,12 +131,10 @@ export default function CaptureEscort({
   paused = false,
   openProgressRef,
 }) {
-  const { camera } = useThree()
   const whiteGuardRef = useRef()
   const blackGuardRef = useRef()
   const pieceRef = useRef()
   const startTime = useRef(null)
-  const cameraMemory = useRef(null)
   const whiteDoorProgress = useRef(0)
   const blackDoorProgress = useRef(0)
 
@@ -155,39 +152,6 @@ export default function CaptureEscort({
 
   useFrame(({ clock }) => {
     if (paused) return
-    const hasCapture = Boolean(capture)
-    if (hasCapture && camera) {
-      if (!cameraMemory.current) {
-        const direction = new THREE.Vector3()
-        camera.getWorldDirection(direction)
-        cameraMemory.current = {
-          pos: camera.position.clone(),
-          target: camera.position.clone().add(direction.multiplyScalar(10)),
-        }
-      }
-      const side = capture.capturingColor || 'w'
-      const stairDir = side === 'w' ? 1 : -1
-      const dungeonPosition = dungeonPositions[side]
-      const viewTarget = new THREE.Vector3(
-        dungeonPosition[0],
-        -2.6,
-        dungeonPosition[2] + stairDir * 4.6
-      )
-      const viewPos = new THREE.Vector3(
-        dungeonPosition[0] + stairDir * 4.6,
-        26,
-        dungeonPosition[2] + stairDir * 9.5
-      )
-      camera.position.lerp(viewPos, CAMERA_BLEND)
-      camera.lookAt(viewTarget)
-    } else if (cameraMemory.current && camera) {
-      camera.position.lerp(cameraMemory.current.pos, CAMERA_BLEND)
-      camera.lookAt(cameraMemory.current.target)
-      if (camera.position.distanceTo(cameraMemory.current.pos) < 0.2) {
-        cameraMemory.current = null
-      }
-    }
-
     const guards = {
       w: whiteGuardRef.current,
       b: blackGuardRef.current,
@@ -202,13 +166,13 @@ export default function CaptureEscort({
 
     whiteDoorProgress.current = 0
     blackDoorProgress.current = 0
-
-    if (openProgressRef?.current) {
-      openProgressRef.current.w = whiteDoorProgress.current
-      openProgressRef.current.b = blackDoorProgress.current
+    if (!capture || !pieceRef.current) {
+      if (openProgressRef?.current) {
+        openProgressRef.current.w = whiteDoorProgress.current
+        openProgressRef.current.b = blackDoorProgress.current
+      }
+      return
     }
-
-    if (!capture || !pieceRef.current) return
 
     if (startTime.current === null) {
       startTime.current = clock.elapsedTime
@@ -278,6 +242,11 @@ export default function CaptureEscort({
     if (elapsed >= TOTAL_TIME) {
       startTime.current = null
       if (onComplete) onComplete()
+    }
+
+    if (openProgressRef?.current) {
+      openProgressRef.current.w = whiteDoorProgress.current
+      openProgressRef.current.b = blackDoorProgress.current
     }
   })
 

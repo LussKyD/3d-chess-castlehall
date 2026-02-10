@@ -218,10 +218,10 @@ function HallFloor({ openProgressRef, paused }) {
     const progress = openProgressRef?.current
       ? Math.max(openProgressRef.current.w || 0, openProgressRef.current.b || 0)
       : 0
-    materialRef.current.opacity = lerp(1, 0.12, progress)
+    materialRef.current.opacity = lerp(1, 0, progress)
     materialRef.current.transparent = true
-    materialRef.current.depthWrite = progress < 0.3
-    materialRef.current.depthTest = progress < 0.3
+    materialRef.current.depthWrite = progress < 0.1
+    materialRef.current.depthTest = progress < 0.1
   })
 
   return (
@@ -420,6 +420,17 @@ export default function CastleHall() {
     }
   }, [activeCapture, captureQueue])
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.code === 'Space') {
+        event.preventDefault()
+        setPaused((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   function handleCapture(capture) {
     setCaptureQueue((prev) => [...prev, capture])
   }
@@ -476,12 +487,6 @@ export default function CastleHall() {
           duration={INTRO_DURATION}
           skipped={introSkipped}
           onDone={() => setIntroDone(true)}
-          paused={paused}
-        />
-        <CinematicCamera
-          timeRef={introTime}
-          duration={INTRO_DURATION}
-          active={!introDone}
           paused={paused}
         />
         <ambientLight intensity={0.36} />
@@ -616,9 +621,9 @@ export default function CastleHall() {
       />
 
         <OrbitControls
-        enablePan={introDone && !activeCapture && !quit}
-        enableZoom={introDone && !activeCapture && !quit}
-        enableRotate={introDone && !activeCapture && !quit}
+          enablePan={!quit}
+          enableZoom={!quit}
+          enableRotate={!quit}
           minDistance={8}
           maxDistance={160}
           maxPolarAngle={Math.PI / 2.03}
