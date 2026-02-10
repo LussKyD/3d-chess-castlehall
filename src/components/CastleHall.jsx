@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import Board from './Board'
 import Character from './Character'
 import CaptureEscort from './CaptureEscort'
+import { DUNGEON_VIEWPORT } from '../config/dungeon'
 
 const INTRO_DURATION = 16
 const FRONT_DOOR_Z = -34.6
@@ -212,41 +213,132 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
 }
 
 function HallFloor({ openProgressRef, paused }) {
-  const materialRef = useRef()
+  const hatchMeshRefs = useRef({ w: null, b: null })
+  const hatchMaterialRefs = useRef({ w: null, b: null })
   const baseColor = useMemo(() => new THREE.Color('#efd99d'), [])
   const xrayColor = useMemo(() => new THREE.Color('#8ca0d8'), [])
   const xrayEmissive = useMemo(() => new THREE.Color('#4f63a0'), [])
+  const holeDefs = useMemo(
+    () => ({
+      w: {
+        id: 'w',
+        x: DUNGEON_POSITIONS.w[0],
+        z: DUNGEON_POSITIONS.w[2] + DUNGEON_VIEWPORT.forwardOffset,
+        width: DUNGEON_VIEWPORT.width + 0.28,
+        depth: DUNGEON_VIEWPORT.depth + 0.28,
+      },
+      b: {
+        id: 'b',
+        x: DUNGEON_POSITIONS.b[0],
+        z: DUNGEON_POSITIONS.b[2] - DUNGEON_VIEWPORT.forwardOffset,
+        width: DUNGEON_VIEWPORT.width + 0.28,
+        depth: DUNGEON_VIEWPORT.depth + 0.28,
+      },
+    }),
+    []
+  )
+  const floorTiles = useMemo(() => {
+    const half = 40
+    const holes = [holeDefs.w, holeDefs.b]
+    const uniqueSorted = (values) =>
+      [...new Set(values.map((value) => Number(value.toFixed(3))))].sort((a, b) => a - b)
+    const xCuts = uniqueSorted([
+      -half,
+      ...holes.flatMap((hole) => [hole.x - hole.width / 2, hole.x + hole.width / 2]),
+      half,
+    ])
+    const zCuts = uniqueSorted([
+      -half,
+      ...holes.flatMap((hole) => [hole.z - hole.depth / 2, hole.z + hole.depth / 2]),
+      half,
+    ])
+    const tiles = []
+    for (let xIndex = 0; xIndex < xCuts.length - 1; xIndex += 1) {
+      for (let zIndex = 0; zIndex < zCuts.length - 1; zIndex += 1) {
+        const xMin = xCuts[xIndex]
+        const xMax = xCuts[xIndex + 1]
+        const zMin = zCuts[zIndex]
+        const zMax = zCuts[zIndex + 1]
+        const centerX = (xMin + xMax) / 2
+        const centerZ = (zMin + zMax) / 2
+        const insideHole = holes.some(
+          (hole) =>
+            centerX > hole.x - hole.width / 2 &&
+            centerX < hole.x + hole.width / 2 &&
+            centerZ > hole.z - hole.depth / 2 &&
+            centerZ < hole.z + hole.depth / 2
+        )
+        if (!insideHole) {
+          tiles.push({
+            id: `${xIndex}-${zIndex}`,
+            x: centerX,
+            z: centerZ,
+            width: xMax - xMin,
+            depth: zMax - zMin,
+          })
+        }
+      }
+    }
+    return tiles
+  }, [holeDefs])
 
   useFrame(() => {
-    if (paused || !materialRef.current) return
-    const progress = openProgressRef?.current
-      ? Math.max(openProgressRef.current.w || 0, openProgressRef.current.b || 0)
-      : 0
-    const blended = clamp(progress, 0, 1)
-    const material = materialRef.current
-    material.opacity = lerp(1, 0.04, blended)
-    material.transparent = blended > 0.001
-    material.depthWrite = blended < 0.03
-    material.depthTest = true
-    material.color.copy(baseColor).lerp(xrayColor, blended * 0.95)
-    material.emissive.copy(xrayEmissive)
-    material.emissiveIntensity = blended * 0.55
+    if (paused) return
+    const progressW = clamp(openProgressRef?.current?.w || 0, 0, 1)
+    const progressB = clamp(openProgressRef?.current?.b || 0, 0, 1)
+    ;[
+      { id: 'w', progress: progressW },
+      { id: 'b', progress: progressB },
+    ].forEach(({ id, progress }) => {
+      const material = hatchMaterialRefs.current[id]
+      const mesh = hatchMeshRefs.current[id]
+      if (!material || !mesh) return
+      material.opacity = lerp(0.98, 0, progress)
+      material.transparent = true
+      material.depthWrite = progress < 0.02
+      material.depthTest = true
+      material.color.copy(baseColor).lerp(xrayColor, progress * 0.95)
+      material.emissive.copy(xrayEmissive)
+      material.emissiveIntensity = progress * 0.65
+      mesh.position.y = lerp(-0.048, -0.42, progress)
+    })
   })
 
   return (
-    <mesh receiveShadow rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}>
-      <planeGeometry args={[80, 80]} />
-      <meshStandardMaterial
-        ref={materialRef}
-        color="#efd99d"
-        emissive="#000000"
-        emissiveIntensity={0}
-        metalness={0.7}
-        roughness={0.35}
-        transparent
-        opacity={1}
-      />
-    </mesh>
+    <group>
+      {floorTiles.map((tile) => (
+        <mesh
+          key={`floor-${tile.id}`}
+          receiveShadow
+          rotation-x={-Math.PI / 2}
+          position={[tile.x, -0.05, tile.z]}
+        >
+          <planeGeometry args={[tile.width, tile.depth]} />
+          <meshStandardMaterial color="#efd99d" metalness={0.7} roughness={0.35} />
+        </mesh>
+      ))}
+      {[holeDefs.w, holeDefs.b].map((hole) => (
+        <mesh
+          key={`hatch-${hole.id}`}
+          ref={(el) => (hatchMeshRefs.current[hole.id] = el)}
+          receiveShadow
+          rotation-x={-Math.PI / 2}
+          position={[hole.x, -0.048, hole.z]}
+        >
+          <planeGeometry args={[hole.width, hole.depth]} />
+          <meshStandardMaterial
+            ref={(el) => (hatchMaterialRefs.current[hole.id] = el)}
+            color="#efd99d"
+            emissive="#000000"
+            emissiveIntensity={0}
+            metalness={0.72}
+            roughness={0.34}
+            transparent
+            opacity={0.98}
+          />
+        </mesh>
+      ))}
+    </group>
   )
 }
 

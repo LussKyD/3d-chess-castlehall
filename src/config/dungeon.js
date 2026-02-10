@@ -32,3 +32,9 @@ export const DUNGEON_MODEL_CONFIG = {
 
 export const CELL_BASE_Y =
   STAIR_CONFIG.startY + (STAIR_CONFIG.count - 1) * STAIR_CONFIG.stepY - 0.8
+
+export const DUNGEON_VIEWPORT = {
+  width: 6.6,
+  depth: 12.5,
+  forwardOffset: 5.3,
+}
