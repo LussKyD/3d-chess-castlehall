@@ -210,7 +210,7 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function HallFloor({ openProgressRef, paused }) {
+function HallFloor({ openProgressRef, paused, forceOpen }) {
   const materialRef = useRef()
 
   useFrame(() => {
@@ -218,10 +218,11 @@ function HallFloor({ openProgressRef, paused }) {
     const progress = openProgressRef?.current
       ? Math.max(openProgressRef.current.w || 0, openProgressRef.current.b || 0)
       : 0
-    materialRef.current.opacity = lerp(1, 0, progress)
+    const blended = Math.max(progress, forceOpen ? 1 : 0)
+    materialRef.current.opacity = lerp(1, 0, blended)
     materialRef.current.transparent = true
-    materialRef.current.depthWrite = progress < 0.1
-    materialRef.current.depthTest = progress < 0.1
+    materialRef.current.depthWrite = blended < 0.1
+    materialRef.current.depthTest = blended < 0.1
   })
 
   return (
@@ -506,7 +507,11 @@ export default function CastleHall() {
 
         <group>
           {/* Floor */}
-          <HallFloor openProgressRef={dungeonOpenRef} paused={paused} />
+          <HallFloor
+            openProgressRef={dungeonOpenRef}
+            paused={paused}
+            forceOpen={Boolean(activeCapture)}
+          />
 
           {/* Golden walls */}
           {[
