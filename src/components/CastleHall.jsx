@@ -210,6 +210,35 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
+function HallFloor({ openProgressRef, paused }) {
+  const materialRef = useRef()
+
+  useFrame(() => {
+    if (paused || !materialRef.current) return
+    const progress = openProgressRef?.current
+      ? Math.max(openProgressRef.current.w || 0, openProgressRef.current.b || 0)
+      : 0
+    materialRef.current.opacity = lerp(1, 0.12, progress)
+    materialRef.current.transparent = true
+    materialRef.current.depthWrite = progress < 0.3
+    materialRef.current.depthTest = progress < 0.3
+  })
+
+  return (
+    <mesh receiveShadow rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}>
+      <planeGeometry args={[80, 80]} />
+      <meshStandardMaterial
+        ref={materialRef}
+        color="#efd99d"
+        metalness={0.7}
+        roughness={0.35}
+        transparent
+        opacity={1}
+      />
+    </mesh>
+  )
+}
+
 function RoyalProcession({ timeRef, duration, kingSeat, queenSeat, paused }) {
   const kingRef = useRef()
   const queenRef = useRef()
@@ -364,6 +393,25 @@ export default function CastleHall() {
   const [resetToken, setResetToken] = useState(0)
   const [captureQueue, setCaptureQueue] = useState([])
   const [activeCapture, setActiveCapture] = useState(null)
+  const dungeonOpenRef = useRef({ w: 0, b: 0 })
+
+  const overlayStyle = {
+    position: 'absolute',
+    right: 18,
+    top: 18,
+    zIndex: 30,
+    display: 'flex',
+    gap: 8,
+    pointerEvents: 'auto',
+  }
+  const buttonStyle = {
+    background: 'linear-gradient(180deg,#ffd86b,#d4af37)',
+    border: 'none',
+    padding: '10px 14px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 600,
+  }
 
   useEffect(() => {
     if (!activeCapture && captureQueue.length) {
@@ -386,19 +434,19 @@ export default function CastleHall() {
 
   return (
     <div className="app">
-      <div className="ui-overlay">
+      <div className="ui-overlay" style={overlayStyle}>
         {!introDone && (
-          <button type="button" onClick={() => setIntroSkipped(true)}>
+          <button type="button" style={buttonStyle} onClick={() => setIntroSkipped(true)}>
             Skip intro
           </button>
         )}
-        <button type="button" onClick={() => setPaused((prev) => !prev)}>
+        <button type="button" style={buttonStyle} onClick={() => setPaused((prev) => !prev)}>
           {paused ? 'Resume' : 'Pause'}
         </button>
-        <button type="button" onClick={handleRestart}>
+        <button type="button" style={buttonStyle} onClick={handleRestart}>
           Restart
         </button>
-        <button type="button" onClick={() => setQuit(true)}>
+        <button type="button" style={buttonStyle} onClick={() => setQuit(true)}>
           Quit
         </button>
       </div>
@@ -453,10 +501,7 @@ export default function CastleHall() {
 
         <group>
           {/* Floor */}
-          <mesh receiveShadow rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}>
-            <planeGeometry args={[80, 80]} />
-            <meshStandardMaterial color="#efd99d" metalness={0.7} roughness={0.35} />
-          </mesh>
+          <HallFloor openProgressRef={dungeonOpenRef} paused={paused} />
 
           {/* Golden walls */}
           {[
@@ -562,6 +607,7 @@ export default function CastleHall() {
           onComplete={() => setActiveCapture(null)}
           dungeonPositions={DUNGEON_POSITIONS}
         paused={paused}
+          openProgressRef={dungeonOpenRef}
         />
       <Board
         disabled={!introDone || paused || quit || Boolean(activeCapture)}

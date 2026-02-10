@@ -9,7 +9,7 @@ const ESCORT_TIME = 1.2
 const DROP_TIME = 0.9
 const RETURN_TIME = 1.1
 const TOTAL_TIME = APPROACH_TIME + ESCORT_TIME + DROP_TIME + RETURN_TIME
-const STAIR_DEPTH = 6
+const STAIR_DEPTH = 7.2
 const CAMERA_BLEND = 0.08
 
 function clamp(value, min, max) {
@@ -67,11 +67,14 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
           roughness={0.7}
           transparent
           opacity={1}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
         />
       </mesh>
       <group>
-        <mesh position={[0, -1.4, 0]}>
-          <boxGeometry args={[2.8, 2.6, 2.8]} />
+        <mesh position={[0, -2.2, 0]}>
+          <boxGeometry args={[3.6, 3.2, 3.6]} />
           <meshStandardMaterial
             ref={cellMaterial}
             color="#141216"
@@ -83,15 +86,15 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
         </mesh>
         {[-1, 1].map((x) =>
           [-1, 1].map((z) => (
-            <mesh key={`bar-${x}-${z}`} position={[x * 1.1, -1.2, z * 1.1]} castShadow>
-              <boxGeometry args={[0.12, 2.2, 0.12]} />
+            <mesh key={`bar-${x}-${z}`} position={[x * 1.4, -2, z * 1.4]} castShadow>
+              <boxGeometry args={[0.12, 2.6, 0.12]} />
               <meshStandardMaterial color="#3b2a1a" metalness={0.6} roughness={0.4} />
             </mesh>
           ))
         )}
       </group>
-      {Array.from({ length: 10 }).map((_, index) => {
-        const stepHeight = -0.2 - index * 0.25
+      {Array.from({ length: 12 }).map((_, index) => {
+        const stepHeight = -0.15 - index * 0.23
         const stepDepth = 0.6 + index * 0.6
         return (
           <mesh
@@ -100,8 +103,8 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
             castShadow
             receiveShadow
           >
-            <boxGeometry args={[2, 0.2, 0.65]} />
-            <meshStandardMaterial color="#4b3b2f" metalness={0.18} roughness={0.75} />
+            <boxGeometry args={[2.2, 0.2, 0.7]} />
+            <meshStandardMaterial color="#5a4a3b" metalness={0.18} roughness={0.75} />
           </mesh>
         )
       })}
@@ -127,6 +130,7 @@ export default function CaptureEscort({
   onComplete,
   dungeonPositions = { w: [-10, 0, 0], b: [10, 0, 0] },
   paused = false,
+  openProgressRef,
 }) {
   const { camera } = useThree()
   const whiteGuardRef = useRef()
@@ -166,13 +170,13 @@ export default function CaptureEscort({
       const dungeonPosition = dungeonPositions[side]
       const viewTarget = new THREE.Vector3(
         dungeonPosition[0],
-        -1.8,
-        dungeonPosition[2] + stairDir * 3
+        -2.6,
+        dungeonPosition[2] + stairDir * 4.6
       )
       const viewPos = new THREE.Vector3(
-        dungeonPosition[0] + stairDir * 4.2,
-        22,
-        dungeonPosition[2] + stairDir * 8
+        dungeonPosition[0] + stairDir * 4.6,
+        26,
+        dungeonPosition[2] + stairDir * 9.5
       )
       camera.position.lerp(viewPos, CAMERA_BLEND)
       camera.lookAt(viewTarget)
@@ -198,6 +202,11 @@ export default function CaptureEscort({
 
     whiteDoorProgress.current = 0
     blackDoorProgress.current = 0
+
+    if (openProgressRef?.current) {
+      openProgressRef.current.w = whiteDoorProgress.current
+      openProgressRef.current.b = blackDoorProgress.current
+    }
 
     if (!capture || !pieceRef.current) return
 
@@ -235,10 +244,10 @@ export default function CaptureEscort({
       const dropT = (t - APPROACH_TIME - ESCORT_TIME) / DROP_TIME
       const p = smoothstep(dropT)
       guardPos = [dungeonPosition[0], dungeonPosition[1], dungeonPosition[2] + stairOffset]
-      guardYOffset = lerp(0, -1.6, p)
+      guardYOffset = lerp(0, -2.4, p)
       piecePos = [
         dungeonPosition[0],
-        lerp(0.4, -3.2, p),
+        lerp(0.4, -4.2, p),
         dungeonPosition[2] + stairOffset,
       ]
       openProgress = 1
@@ -247,8 +256,8 @@ export default function CaptureEscort({
       const p = smoothstep(returnT)
       const returnStart = [dungeonPosition[0], dungeonPosition[1], dungeonPosition[2] + stairOffset]
       guardPos = lerpVec(returnStart, homePos, p)
-      guardYOffset = lerp(-1.6, 0, p)
-      piecePos = [dungeonPosition[0], -3.2, dungeonPosition[2] + stairOffset]
+      guardYOffset = lerp(-2.4, 0, p)
+      piecePos = [dungeonPosition[0], -4.2, dungeonPosition[2] + stairOffset]
       openProgress = 1 - p
     }
 
