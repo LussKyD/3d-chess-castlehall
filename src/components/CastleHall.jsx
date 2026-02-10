@@ -211,7 +211,7 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function HallFloor({ openProgressRef, captureActive = false }) {
+function HallFloor() {
   const holeDefs = useMemo(
     () => ({
       w: {
@@ -276,9 +276,6 @@ function HallFloor({ openProgressRef, captureActive = false }) {
     return tiles
   }, [holeDefs])
 
-  const revealW = clamp(Math.max(openProgressRef?.current?.w || 0, captureActive ? 1 : 0), 0, 1)
-  const revealB = clamp(Math.max(openProgressRef?.current?.b || 0, captureActive ? 1 : 0), 0, 1)
-
   return (
     <group>
       {floorTiles.map((tile) => (
@@ -292,23 +289,6 @@ function HallFloor({ openProgressRef, captureActive = false }) {
           <meshStandardMaterial color="#efd99d" metalness={0.7} roughness={0.35} />
         </mesh>
       ))}
-      {[
-        { hole: holeDefs.w, reveal: revealW },
-        { hole: holeDefs.b, reveal: revealB },
-      ].map(({ hole, reveal }) => {
-        if (reveal > 0.06) return null
-        return (
-          <mesh
-            key={`hatch-${hole.id}`}
-            receiveShadow
-            rotation-x={-Math.PI / 2}
-            position={[hole.x, -0.048, hole.z]}
-          >
-            <planeGeometry args={[hole.width, hole.depth]} />
-            <meshStandardMaterial color="#efd99d" metalness={0.72} roughness={0.34} />
-          </mesh>
-        )
-      })}
     </group>
   )
 }
@@ -581,8 +561,6 @@ export default function CastleHall() {
         <group>
           {/* Floor */}
           <HallFloor
-            openProgressRef={dungeonOpenRef}
-            captureActive={Boolean(activeCapture)}
           />
 
           {/* Golden walls */}

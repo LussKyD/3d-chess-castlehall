@@ -147,6 +147,9 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
   const cellLightRef = useRef()
   const fillLightRef = useRef()
   const topLightRef = useRef()
+  const leftWallRef = useRef()
+  const rightWallRef = useRef()
+  const backWallRef = useRef()
   const chamberWidth = DUNGEON_VIEWPORT.width - 0.3
   const chamberStartZ = -1.25
   const chamberEndZ = chamberStartZ + DUNGEON_VIEWPORT.depth
@@ -224,6 +227,11 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
 
   useFrame(() => {
     const open = clamp(Math.max(openProgressRef?.current || 0, captureActive ? 1 : 0), 0, 1)
+    const cutaway = open > 0.18
+    ;[leftWallRef.current, rightWallRef.current, backWallRef.current].forEach((mesh) => {
+      if (mesh) mesh.visible = !cutaway
+    })
+
     if (stairLightRef.current) {
       stairLightRef.current.intensity = 0.55 + open * 1.7
       stairLightRef.current.distance = 8 + open * 9
@@ -240,9 +248,11 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
       topLightRef.current.intensity = 0.35 + open * 1.1
       topLightRef.current.distance = 9 + open * 8
     }
-    wallMaterial.opacity = lerp(0.96, 0.32, open)
+    wallMaterial.opacity = lerp(0.35, 0.06, open)
+    wallMaterial.depthWrite = open < 0.05
     wallMaterial.emissiveIntensity = 0.08 + open * 0.34
-    cellMaterial.opacity = lerp(0.95, 0.28, open)
+    cellMaterial.opacity = lerp(0.35, 0.08, open)
+    cellMaterial.depthWrite = open < 0.05
     cellMaterial.emissiveIntensity = 0.1 + open * 0.34
     stepMaterial.emissiveIntensity = 0.06 + open * 0.2
     barMaterial.emissiveIntensity = 0.12 + open * 0.28
@@ -254,6 +264,7 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
         <boxGeometry args={[chamberWidth, 0.2, chamberDepth]} />
       </mesh>
       <mesh
+        ref={leftWallRef}
         receiveShadow
         position={[-chamberWidth / 2 + wallThickness / 2, wallY, chamberCenterZ]}
         material={wallMaterial}
@@ -261,13 +272,19 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
         <boxGeometry args={[wallThickness, wallHeight, chamberDepth]} />
       </mesh>
       <mesh
+        ref={rightWallRef}
         receiveShadow
         position={[chamberWidth / 2 - wallThickness / 2, wallY, chamberCenterZ]}
         material={wallMaterial}
       >
         <boxGeometry args={[wallThickness, wallHeight, chamberDepth]} />
       </mesh>
-      <mesh receiveShadow position={[0, wallY, chamberEndZ - wallThickness / 2]} material={wallMaterial}>
+      <mesh
+        ref={backWallRef}
+        receiveShadow
+        position={[0, wallY, chamberEndZ - wallThickness / 2]}
+        material={wallMaterial}
+      >
         <boxGeometry args={[chamberWidth, wallHeight, wallThickness]} />
       </mesh>
 
