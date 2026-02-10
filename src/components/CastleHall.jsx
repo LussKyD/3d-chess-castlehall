@@ -2,10 +2,10 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import * as THREE from 'three'
 import Board from './Board'
 import Character from './Character'
 import CaptureEscort from './CaptureEscort'
-import { DUNGEON_VIEWPORT } from '../config/dungeon'
 
 const INTRO_DURATION = 16
 const FRONT_DOOR_Z = -34.6
@@ -211,86 +211,81 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function HallFloor() {
-  const holeDefs = useMemo(
-    () => ({
-      w: {
-        id: 'w',
-        x: DUNGEON_POSITIONS.w[0],
-        z: DUNGEON_POSITIONS.w[2] + DUNGEON_VIEWPORT.forwardOffset,
-        width: DUNGEON_VIEWPORT.width + 0.28,
-        depth: DUNGEON_VIEWPORT.depth + 0.28,
-      },
-      b: {
-        id: 'b',
-        x: DUNGEON_POSITIONS.b[0],
-        z: DUNGEON_POSITIONS.b[2] - DUNGEON_VIEWPORT.forwardOffset,
-        width: DUNGEON_VIEWPORT.width + 0.28,
-        depth: DUNGEON_VIEWPORT.depth + 0.28,
-      },
-    }),
-    []
-  )
-  const floorTiles = useMemo(() => {
-    const half = 40
-    const holes = [holeDefs.w, holeDefs.b]
-    const uniqueSorted = (values) =>
-      [...new Set(values.map((value) => Number(value.toFixed(3))))].sort((a, b) => a - b)
-    const xCuts = uniqueSorted([
-      -half,
-      ...holes.flatMap((hole) => [hole.x - hole.width / 2, hole.x + hole.width / 2]),
-      half,
-    ])
-    const zCuts = uniqueSorted([
-      -half,
-      ...holes.flatMap((hole) => [hole.z - hole.depth / 2, hole.z + hole.depth / 2]),
-      half,
-    ])
-    const tiles = []
-    for (let xIndex = 0; xIndex < xCuts.length - 1; xIndex += 1) {
-      for (let zIndex = 0; zIndex < zCuts.length - 1; zIndex += 1) {
-        const xMin = xCuts[xIndex]
-        const xMax = xCuts[xIndex + 1]
-        const zMin = zCuts[zIndex]
-        const zMax = zCuts[zIndex + 1]
-        const centerX = (xMin + xMax) / 2
-        const centerZ = (zMin + zMax) / 2
-        const insideHole = holes.some(
-          (hole) =>
-            centerX > hole.x - hole.width / 2 &&
-            centerX < hole.x + hole.width / 2 &&
-            centerZ > hole.z - hole.depth / 2 &&
-            centerZ < hole.z + hole.depth / 2
-        )
-        if (!insideHole) {
-          tiles.push({
-            id: `${xIndex}-${zIndex}`,
-            x: centerX,
-            z: centerZ,
-            width: xMax - xMin,
-            depth: zMax - zMin,
-          })
-        }
-      }
-    }
-    return tiles
-  }, [holeDefs])
+function HallFloor({ openProgressRef, captureActive = false, paused = false }) {
+  const materialRef = useRef()
+  const baseColor = useMemo(() => new THREE.Color('#efd99d'), [])
+  const ghostColor = useMemo(() => new THREE.Color('#9ca9de'), [])
+  const glowColor = useMemo(() => new THREE.Color('#5a6cb4'), [])
+
+  useFrame(() => {
+    if (paused || !materialRef.current) return
+    const openProgress = openProgressRef?.current
+      ? Math.max(openProgressRef.current.w || 0, openProgressRef.current.b || 0)
+      : 0
+    const reveal = clamp(Math.max(openProgress, captureActive ? 0.32 : 0), 0, 1)
+    const material = materialRef.current
+    material.transparent = reveal > 0.001
+    material.opacity = lerp(1, 0.22, reveal)
+    material.depthWrite = reveal < 0.08
+    material.depthTest = true
+    material.color.copy(baseColor).lerp(ghostColor, reveal * 0.85)
+    material.emissive.copy(glowColor)
+    material.emissiveIntensity = reveal * 0.42
+  })
 
   return (
-    <group>
-      {floorTiles.map((tile) => (
-        <mesh
-          key={`floor-${tile.id}`}
-          receiveShadow
-          rotation-x={-Math.PI / 2}
-          position={[tile.x, -0.05, tile.z]}
-        >
-          <planeGeometry args={[tile.width, tile.depth]} />
-          <meshStandardMaterial color="#efd99d" metalness={0.7} roughness={0.35} />
-        </mesh>
-      ))}
-    </group>
+    <mesh receiveShadow rotation-x={-Math.PI / 2} position={[0, -0.05, 0]}>
+      <planeGeometry args={[80, 80]} />
+      <meshStandardMaterial
+        ref={materialRef}
+        color="#efd99d"
+        emissive="#000000"
+        emissiveIntensity={0}
+        metalness={0.7}
+        roughness={0.35}
+        transparent
+        opacity={1}
+      />
+    </mesh>
   )
+}
+
+function CaptureFollowCamera({ trackRef, active, paused }) {
+  const { camera } = useThree()
+  const desiredPos = useRef(new THREE.Vector3())
+  const desiredLook = useRef(new THREE.Vector3())
+
+  useFrame((_, delta) => {
+    if (!active || paused) return
+    const track = trackRef.current
+    if (!track?.guard) return
+    const [gx, gy, gz] = track.guard
+    const prisoner = track.prisoner || track.guard
+    const focusX = (gx + prisoner[0]) * 0.5
+    const focusY = Math.max(0.8, (gy + prisoner[1]) * 0.5 + 0.55)
+    const focusZ = (gz + prisoner[2]) * 0.5
+    const sideSign = track.side === 'w' ? -1 : 1
+    const inDungeon =
+      gy < -0.2 ||
+      String(track.phase || '').includes('stairs') ||
+      String(track.phase || '').includes('cell') ||
+      ['push', 'throw', 'gate-slam'].includes(track.phase)
+    const height = inDungeon ? 2.2 : 4.8
+    const back = inDungeon ? 2.2 : 5.4
+    const lateral = inDungeon ? 1.7 : 2.4
+
+    desiredPos.current.set(
+      focusX + lateral * sideSign,
+      focusY + height,
+      focusZ - back * sideSign
+    )
+    desiredLook.current.set(focusX, focusY, focusZ)
+    const blend = 1 - Math.exp(-delta * 4.2)
+    camera.position.lerp(desiredPos.current, blend)
+    camera.lookAt(desiredLook.current)
+  })
+
+  return null
 }
 
 function RoyalProcession({ timeRef, duration, kingSeat, queenSeat, paused }) {
@@ -448,6 +443,7 @@ export default function CastleHall() {
   const [captureQueue, setCaptureQueue] = useState([])
   const [activeCapture, setActiveCapture] = useState(null)
   const dungeonOpenRef = useRef({ w: 0, b: 0 })
+  const captureTrackRef = useRef(null)
 
   const overlayStyle = {
     position: 'absolute',
@@ -543,6 +539,11 @@ export default function CastleHall() {
           onDone={() => setIntroDone(true)}
           paused={paused}
         />
+        <CaptureFollowCamera
+          trackRef={captureTrackRef}
+          active={Boolean(activeCapture)}
+          paused={paused}
+        />
         <ambientLight intensity={0.36} />
         <directionalLight
           position={[20, 30, 12]}
@@ -561,6 +562,9 @@ export default function CastleHall() {
         <group>
           {/* Floor */}
           <HallFloor
+            openProgressRef={dungeonOpenRef}
+            captureActive={Boolean(activeCapture)}
+            paused={paused}
           />
 
           {/* Golden walls */}
@@ -668,6 +672,9 @@ export default function CastleHall() {
           dungeonPositions={DUNGEON_POSITIONS}
           paused={paused}
           captureActive={Boolean(activeCapture)}
+          onTrackingUpdate={(track) => {
+            captureTrackRef.current = track
+          }}
           openProgressRef={dungeonOpenRef}
         />
         <Board
@@ -677,9 +684,9 @@ export default function CastleHall() {
         />
 
         <OrbitControls
-          enablePan={!quit}
-          enableZoom={!quit}
-          enableRotate={!quit}
+          enablePan={!quit && !activeCapture}
+          enableZoom={!quit && !activeCapture}
+          enableRotate={!quit && !activeCapture}
           minDistance={8}
           maxDistance={160}
           maxPolarAngle={Math.PI / 2.03}

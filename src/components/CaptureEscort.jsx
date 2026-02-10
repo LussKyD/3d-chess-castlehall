@@ -12,13 +12,14 @@ import {
   DUNGEON_VIEWPORT,
 } from '../config/dungeon'
 
-const APPROACH_TIME = 0.6
 const GRAB_TIME = 0.25
 const ESCORT_TIME = 0.9
 const STEP_FORWARD_TIME = 0.12
 const STEP_DOWN_TIME = 0.1
 const TO_CELL_TIME = 0.2
+const PUSH_TIME = 0.24
 const THROW_TIME = 0.35
+const GATE_SLAM_TIME = 0.22
 const RETURN_STEP_TIME = 0.06
 const RETURN_HOME_TIME = 0.35
 
@@ -49,60 +50,118 @@ function buildStairSteps() {
   return steps
 }
 
-function createMoveSegment(from, to, duration, carry, open) {
-  return { type: 'move', from, to, duration, carry, open }
+function createMoveSegment(from, to, duration, carry, open, extras = {}) {
+  return { type: 'move', from, to, duration, carry, open, ...extras }
 }
 
-function createThrowSegment(from, to, duration, open, arc = 0.6) {
-  return { type: 'throw', from, to, duration, carry: false, open, arc }
+function createThrowSegment(from, to, duration, open, arc = 0.6, extras = {}) {
+  return { type: 'throw', from, to, duration, carry: false, open, arc, ...extras }
 }
 
-function buildSequence({ capture, dungeonPositions, homePositions }) {
+function buildSequence({ capture, dungeonPositions }) {
   const side = capture.capturingColor || 'w'
   const stairDir = side === 'w' ? 1 : -1
   const dungeon = dungeonPositions[side]
-  const home = homePositions[side]
   const start = [capture.position[0], 0, capture.position[2]]
+  const home = [capture.position[0], 0, capture.position[2]]
   const stairEntry = [dungeon[0], 0, dungeon[2]]
   const steps = buildStairSteps()
   const segments = []
 
-  segments.push(createMoveSegment(home, start, APPROACH_TIME, false, 0))
-  segments.push(createMoveSegment(start, start, GRAB_TIME, true, 0))
-  segments.push(createMoveSegment(start, stairEntry, ESCORT_TIME, true, 1))
+  segments.push(createMoveSegment(start, start, GRAB_TIME, true, 0, { phase: 'grab' }))
+  segments.push(
+    createMoveSegment(start, stairEntry, ESCORT_TIME, true, 1, {
+      phase: 'to-stairs',
+      footstep: true,
+    })
+  )
 
   let current = stairEntry
   steps.forEach((step) => {
     const forward = [dungeon[0], current[1], dungeon[2] + stairDir * step.z]
-    segments.push(createMoveSegment(current, forward, STEP_FORWARD_TIME, true, 1))
+    segments.push(
+      createMoveSegment(current, forward, STEP_FORWARD_TIME, true, 1, {
+        phase: 'stairs-forward',
+        footstep: true,
+        stumble: true,
+      })
+    )
     const down = [dungeon[0], step.y, forward[2]]
-    segments.push(createMoveSegment(forward, down, STEP_DOWN_TIME, true, 1))
+    segments.push(
+      createMoveSegment(forward, down, STEP_DOWN_TIME, true, 1, {
+        phase: 'stairs-down',
+        footstep: true,
+        stumble: true,
+      })
+    )
     current = down
   })
 
   const cellStand = [dungeon[0], current[1], dungeon[2] + stairDir * DUNGEON_MODEL_CONFIG.cell.offset]
-  segments.push(createMoveSegment(current, cellStand, TO_CELL_TIME, true, 1))
+  segments.push(
+    createMoveSegment(current, cellStand, TO_CELL_TIME, true, 1, {
+      phase: 'cell-approach',
+      footstep: true,
+    })
+  )
+  segments.push(createMoveSegment(cellStand, cellStand, PUSH_TIME, true, 1, { phase: 'push' }))
 
   const cellPrisoner = [cellStand[0], CELL_BASE_Y, cellStand[2] + stairDir * 0.4]
-  segments.push(createThrowSegment(cellStand, cellPrisoner, THROW_TIME, 1))
+  segments.push(createThrowSegment(cellStand, cellPrisoner, THROW_TIME, 1, 0.66, { phase: 'throw' }))
+  segments.push(
+    createMoveSegment(cellStand, cellStand, GATE_SLAM_TIME, false, 1, {
+      phase: 'gate-slam',
+      gateSlam: true,
+    })
+  )
 
   let returnPos = cellStand
-  segments.push(createMoveSegment(cellStand, current, 0.18, false, 1))
+  segments.push(
+    createMoveSegment(cellStand, current, 0.18, false, 1, {
+      phase: 'leave-cell',
+      footstep: true,
+    })
+  )
 
   for (let i = steps.length - 2; i >= 0; i -= 1) {
     const step = steps[i]
     const open = clamp((i + 1) / (steps.length - 1), 0, 1)
     const up = [returnPos[0], step.y, returnPos[2]]
-    segments.push(createMoveSegment(returnPos, up, RETURN_STEP_TIME, false, open))
+    segments.push(
+      createMoveSegment(returnPos, up, RETURN_STEP_TIME, false, open, {
+        phase: 'return-up',
+        footstep: true,
+      })
+    )
     const back = [dungeon[0], step.y, dungeon[2] + stairDir * step.z]
-    segments.push(createMoveSegment(up, back, RETURN_STEP_TIME, false, open))
+    segments.push(
+      createMoveSegment(up, back, RETURN_STEP_TIME, false, open, {
+        phase: 'return-back',
+        footstep: true,
+      })
+    )
     returnPos = back
   }
 
   const upToHall = [returnPos[0], 0, returnPos[2]]
-  segments.push(createMoveSegment(returnPos, upToHall, RETURN_STEP_TIME, false, 0.06))
-  segments.push(createMoveSegment(upToHall, stairEntry, RETURN_STEP_TIME, false, 0.03))
-  segments.push(createMoveSegment(stairEntry, home, RETURN_HOME_TIME, false, 0))
+  segments.push(
+    createMoveSegment(returnPos, upToHall, RETURN_STEP_TIME, false, 0.06, {
+      phase: 'return-lift',
+      footstep: true,
+    })
+  )
+  segments.push(
+    createMoveSegment(upToHall, stairEntry, RETURN_STEP_TIME, false, 0.03, {
+      phase: 'return-door',
+      footstep: true,
+    })
+  )
+  segments.push(
+    createMoveSegment(stairEntry, home, RETURN_HOME_TIME, false, 0, {
+      phase: 'return-home',
+      footstep: true,
+    })
+  )
 
   return {
     side,
@@ -113,6 +172,7 @@ function buildSequence({ capture, dungeonPositions, homePositions }) {
     time: 0,
     open: 0,
     prisonerFixed: null,
+    home,
   }
 }
 
@@ -142,7 +202,13 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, captureActiv
   )
 }
 
-function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive = false }) {
+function DungeonChamber({
+  position,
+  stairDir = 1,
+  openProgressRef,
+  gateProgressRef,
+  captureActive = false,
+}) {
   const stairLightRef = useRef()
   const cellLightRef = useRef()
   const fillLightRef = useRef()
@@ -150,6 +216,7 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
   const leftWallRef = useRef()
   const rightWallRef = useRef()
   const backWallRef = useRef()
+  const gateRef = useRef()
   const chamberWidth = DUNGEON_VIEWPORT.width - 0.3
   const chamberStartZ = -1.25
   const chamberEndZ = chamberStartZ + DUNGEON_VIEWPORT.depth
@@ -227,10 +294,15 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
 
   useFrame(() => {
     const open = clamp(Math.max(openProgressRef?.current || 0, captureActive ? 1 : 0), 0, 1)
+    const gateClosed = clamp(gateProgressRef?.current ?? 1, 0, 1)
     const cutaway = open > 0.18
     ;[leftWallRef.current, rightWallRef.current, backWallRef.current].forEach((mesh) => {
       if (mesh) mesh.visible = !cutaway
     })
+    if (gateRef.current) {
+      gateRef.current.position.y =
+        lastStepY + cell.height / 2 - 1.1 + lerp(cell.height * 0.72, 0, gateClosed)
+    }
 
     if (stairLightRef.current) {
       stairLightRef.current.intensity = 0.55 + open * 1.7
@@ -329,26 +401,22 @@ function DungeonChamber({ position, stairDir = 1, openProgressRef, captureActive
         <boxGeometry args={[wallThickness, cell.height, cell.depth]} />
       </mesh>
 
-      {Array.from({ length: 5 }).map((_, i) => {
-        const x = -cell.width / 2 + (i + 1) * (cell.width / 6)
-        return (
-          <mesh
-            key={`bar-${i}`}
-            castShadow
-            position={[x, lastStepY + cell.height / 2 - 1.1, cell.offset - cell.depth / 2]}
-            material={barMaterial}
-          >
-            <boxGeometry args={[0.1, cell.height * 0.9, 0.1]} />
-          </mesh>
-        )
-      })}
-      <mesh
-        castShadow
-        position={[0, lastStepY + cell.height - 1.2, cell.offset - cell.depth / 2]}
-        material={barMaterial}
-      >
-        <boxGeometry args={[cell.width, 0.12, 0.12]} />
-      </mesh>
+      <group ref={gateRef} position={[0, lastStepY + cell.height / 2 - 1.1, cell.offset - cell.depth / 2]}>
+        {Array.from({ length: 5 }).map((_, i) => {
+          const x = -cell.width / 2 + (i + 1) * (cell.width / 6)
+          return (
+            <mesh key={`gate-moving-bar-${i}`} castShadow position={[x, 0, 0]} material={barMaterial}>
+              <boxGeometry args={[0.1, cell.height * 0.9, 0.1]} />
+            </mesh>
+          )
+        })}
+        <mesh castShadow position={[0, cell.height * 0.45, 0]} material={barMaterial}>
+          <boxGeometry args={[cell.width, 0.12, 0.12]} />
+        </mesh>
+        <mesh castShadow position={[0, -cell.height * 0.45, 0]} material={barMaterial}>
+          <boxGeometry args={[cell.width, 0.12, 0.12]} />
+        </mesh>
+      </group>
 
       <pointLight
         ref={stairLightRef}
@@ -392,6 +460,7 @@ export default function CaptureEscort({
   dungeonPositions = { w: [-10, 0, 0], b: [10, 0, 0] },
   paused = false,
   captureActive = false,
+  onTrackingUpdate,
   openProgressRef,
 }) {
   const [prisonerPiece, setPrisonerPiece] = useState(null)
@@ -402,6 +471,10 @@ export default function CaptureEscort({
   const sequenceRef = useRef(null)
   const whiteDoorProgress = useRef(0)
   const blackDoorProgress = useRef(0)
+  const whiteGateProgress = useRef(1)
+  const blackGateProgress = useRef(1)
+  const prevSegmentRef = useRef({ side: null, index: -1 })
+  const audioContextRef = useRef(null)
 
   const homePositions = useMemo(
     () => ({
@@ -414,8 +487,58 @@ export default function CaptureEscort({
   useEffect(() => {
     if (!capture) return
     setPrisonerPiece(capture.piece)
-    sequenceRef.current = buildSequence({ capture, dungeonPositions, homePositions })
-  }, [capture, dungeonPositions, homePositions])
+    sequenceRef.current = buildSequence({ capture, dungeonPositions })
+    prevSegmentRef.current = { side: null, index: -1 }
+  }, [capture, dungeonPositions])
+
+  function ensureAudioContext() {
+    if (typeof window === 'undefined') return null
+    if (!audioContextRef.current) {
+      const Context = window.AudioContext || window.webkitAudioContext
+      if (!Context) return null
+      audioContextRef.current = new Context()
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch(() => {})
+    }
+    return audioContextRef.current
+  }
+
+  function playFootstep(volume = 0.05) {
+    const context = ensureAudioContext()
+    if (!context) return
+    const now = context.currentTime
+    const osc = context.createOscillator()
+    const gain = context.createGain()
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(120, now)
+    osc.frequency.exponentialRampToValueAtTime(64, now + 0.1)
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14)
+    osc.connect(gain)
+    gain.connect(context.destination)
+    osc.start(now)
+    osc.stop(now + 0.15)
+  }
+
+  function playGateSlam() {
+    const context = ensureAudioContext()
+    if (!context) return
+    const now = context.currentTime
+    const osc = context.createOscillator()
+    const gain = context.createGain()
+    osc.type = 'square'
+    osc.frequency.setValueAtTime(180, now)
+    osc.frequency.exponentialRampToValueAtTime(42, now + 0.16)
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24)
+    osc.connect(gain)
+    gain.connect(context.destination)
+    osc.start(now)
+    osc.stop(now + 0.25)
+  }
 
   function getCellSlotPosition(side, index) {
     const stairDir = side === 'w' ? 1 : -1
@@ -434,7 +557,7 @@ export default function CaptureEscort({
     return [base[0] + x, CELL_BASE_Y + y, cellZ + z]
   }
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (paused) return
 
     const guards = {
@@ -444,16 +567,21 @@ export default function CaptureEscort({
 
     if (!guards.w || !guards.b) return
 
+    guards.w.visible = false
+    guards.b.visible = false
     guards.w.position.set(homePositions.w[0], homePositions.w[1], homePositions.w[2])
     guards.b.position.set(homePositions.b[0], homePositions.b[1], homePositions.b[2])
     guards.w.lookAt(0, 1, 0)
     guards.b.lookAt(0, 1, 0)
 
-    whiteDoorProgress.current = 0
-    blackDoorProgress.current = 0
+    whiteDoorProgress.current = lerp(whiteDoorProgress.current, 0, 0.24)
+    blackDoorProgress.current = lerp(blackDoorProgress.current, 0, 0.24)
+    whiteGateProgress.current = lerp(whiteGateProgress.current, 1, 0.2)
+    blackGateProgress.current = lerp(blackGateProgress.current, 1, 0.2)
 
     const sequence = sequenceRef.current
     if (!sequence) {
+      if (onTrackingUpdate) onTrackingUpdate(null)
       if (openProgressRef?.current) {
         openProgressRef.current.w = whiteDoorProgress.current
         openProgressRef.current.b = blackDoorProgress.current
@@ -464,8 +592,22 @@ export default function CaptureEscort({
     const segment = sequence.segments[sequence.index]
     if (!segment) {
       sequenceRef.current = null
+      if (onTrackingUpdate) onTrackingUpdate(null)
       if (onComplete) onComplete()
       return
+    }
+
+    if (
+      prevSegmentRef.current.side !== sequence.side ||
+      prevSegmentRef.current.index !== sequence.index
+    ) {
+      if (segment.footstep) {
+        playFootstep(segment.stumble ? 0.065 : 0.05)
+      }
+      if (segment.gateSlam) {
+        playGateSlam()
+      }
+      prevSegmentRef.current = { side: sequence.side, index: sequence.index }
     }
 
     sequence.time += delta
@@ -476,9 +618,11 @@ export default function CaptureEscort({
     let prisonerPos = guardPos
 
     if (segment.carry) {
+      const wobble = segment.stumble ? Math.sin(state.clock.elapsedTime * 18) * 0.05 : 0
+      const bounce = segment.stumble ? Math.abs(Math.sin(state.clock.elapsedTime * 13)) * 0.05 : 0
       prisonerPos = [
-        guardPos[0] + PRISONER_OFFSET[0],
-        guardPos[1] + PRISONER_OFFSET[1],
+        guardPos[0] + PRISONER_OFFSET[0] + wobble,
+        guardPos[1] + PRISONER_OFFSET[1] + bounce,
         guardPos[2] + PRISONER_OFFSET[2],
       ]
     } else if (segment.type === 'throw') {
@@ -495,14 +639,35 @@ export default function CaptureEscort({
     }
 
     const activeGuard = sequence.side === 'w' ? guards.w : guards.b
+    activeGuard.visible = true
     activeGuard.position.set(guardPos[0], guardPos[1], guardPos[2])
-    activeGuard.lookAt(0, 1, 0)
+    const moveX = segment.to[0] - segment.from[0]
+    const moveZ = segment.to[2] - segment.from[2]
+    if (Math.abs(moveX) + Math.abs(moveZ) > 0.001) {
+      activeGuard.lookAt(segment.to[0], guardPos[1] + 0.35, segment.to[2])
+    } else {
+      activeGuard.lookAt(0, 1, 0)
+    }
 
     sequence.open = lerp(sequence.open, segment.open, 0.2)
     if (sequence.side === 'w') {
       whiteDoorProgress.current = sequence.open
+      if (segment.phase === 'push' || segment.phase === 'throw') {
+        whiteGateProgress.current = lerp(whiteGateProgress.current, 0, 0.26)
+      } else if (segment.phase === 'gate-slam') {
+        whiteGateProgress.current = lerp(whiteGateProgress.current, 1, 0.42)
+      } else {
+        whiteGateProgress.current = lerp(whiteGateProgress.current, 1, 0.08)
+      }
     } else {
       blackDoorProgress.current = sequence.open
+      if (segment.phase === 'push' || segment.phase === 'throw') {
+        blackGateProgress.current = lerp(blackGateProgress.current, 0, 0.26)
+      } else if (segment.phase === 'gate-slam') {
+        blackGateProgress.current = lerp(blackGateProgress.current, 1, 0.42)
+      } else {
+        blackGateProgress.current = lerp(blackGateProgress.current, 1, 0.08)
+      }
     }
 
     if (progress >= 1) {
@@ -529,6 +694,17 @@ export default function CaptureEscort({
       pieceRef.current.visible = false
     }
 
+    if (onTrackingUpdate) {
+      onTrackingUpdate({
+        side: sequence.side,
+        phase: segment.phase || segment.type,
+        guard: guardPos,
+        prisoner: prisonerPos,
+        open: sequence.open,
+        gate: sequence.side === 'w' ? whiteGateProgress.current : blackGateProgress.current,
+      })
+    }
+
     if (openProgressRef?.current) {
       openProgressRef.current.w = whiteDoorProgress.current
       openProgressRef.current.b = blackDoorProgress.current
@@ -541,12 +717,14 @@ export default function CaptureEscort({
         position={dungeonPositions.w}
         stairDir={1}
         openProgressRef={whiteDoorProgress}
+        gateProgressRef={whiteGateProgress}
         captureActive={captureActive}
       />
       <DungeonChamber
         position={dungeonPositions.b}
         stairDir={-1}
         openProgressRef={blackDoorProgress}
+        gateProgressRef={blackGateProgress}
         captureActive={captureActive}
       />
       <DungeonEntrance
