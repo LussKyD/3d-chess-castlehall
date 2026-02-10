@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { useGLTF } from '@react-three/drei'
 import Character from './Character'
 import Piece from './Piece'
-import Model from './models/Model'
 import * as THREE from 'three'
 import {
   STAIR_CONFIG,
@@ -88,20 +88,21 @@ function buildSequence({ capture, dungeonPositions, homePositions }) {
   segments.push(createThrowSegment(cellStand, cellPrisoner, THROW_TIME, 1))
 
   let returnPos = cellStand
-  segments.push(createMoveSegment(cellStand, current, 0.18, false, 0))
+  segments.push(createMoveSegment(cellStand, current, 0.18, false, 1))
 
   for (let i = steps.length - 2; i >= 0; i -= 1) {
     const step = steps[i]
+    const open = clamp((i + 1) / (steps.length - 1), 0, 1)
     const up = [returnPos[0], step.y, returnPos[2]]
-    segments.push(createMoveSegment(returnPos, up, RETURN_STEP_TIME, false, 0))
+    segments.push(createMoveSegment(returnPos, up, RETURN_STEP_TIME, false, open))
     const back = [dungeon[0], step.y, dungeon[2] + stairDir * step.z]
-    segments.push(createMoveSegment(up, back, RETURN_STEP_TIME, false, 0))
+    segments.push(createMoveSegment(up, back, RETURN_STEP_TIME, false, open))
     returnPos = back
   }
 
   const upToHall = [returnPos[0], 0, returnPos[2]]
-  segments.push(createMoveSegment(returnPos, upToHall, RETURN_STEP_TIME, false, 0))
-  segments.push(createMoveSegment(upToHall, stairEntry, RETURN_STEP_TIME, false, 0))
+  segments.push(createMoveSegment(returnPos, upToHall, RETURN_STEP_TIME, false, 0.06))
+  segments.push(createMoveSegment(upToHall, stairEntry, RETURN_STEP_TIME, false, 0.03))
   segments.push(createMoveSegment(stairEntry, home, RETURN_HOME_TIME, false, 0))
 
   return {
@@ -160,14 +161,71 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
   )
 }
 
-function DungeonRoomModel({ position, stairDir = 1 }) {
-  const rotation = stairDir === 1 ? [0, 0, 0] : [0, Math.PI, 0]
+function DungeonRoomModel({ position, stairDir = 1, openProgressRef }) {
   return (
-    <group position={position} rotation={rotation}>
-      <Model url={DUNGEON_MODEL_PATH} />
+    <group position={position} rotation={stairDir === 1 ? [0, 0, 0] : [0, Math.PI, 0]}>
+      <Suspense fallback={null}>
+        <DungeonRoomGeometry openProgressRef={openProgressRef} />
+      </Suspense>
     </group>
   )
 }
+
+function DungeonRoomGeometry({ openProgressRef }) {
+  const { scene } = useGLTF(DUNGEON_MODEL_PATH)
+  const cloned = useMemo(() => scene.clone(true), [scene])
+  const xrayTint = useMemo(() => new THREE.Color('#9eaef8'), [])
+  const xrayEmissive = useMemo(() => new THREE.Color('#4a5fc2'), [])
+  const trackedMaterials = useMemo(() => {
+    const materials = []
+    cloned.traverse((child) => {
+      if (!child.isMesh) return
+      child.castShadow = true
+      child.receiveShadow = true
+      const source = Array.isArray(child.material) ? child.material : [child.material]
+      const clonedMaterials = source.map((mat) => {
+        if (!mat) return mat
+        const next = mat.clone()
+        materials.push({
+          material: next,
+          baseOpacity: next.opacity ?? 1,
+          baseTransparent: Boolean(next.transparent),
+          baseColor: next.color ? next.color.clone() : null,
+          baseEmissive:
+            'emissive' in next && next.emissive ? next.emissive.clone() : new THREE.Color(0x000000),
+          baseEmissiveIntensity:
+            typeof next.emissiveIntensity === 'number' ? next.emissiveIntensity : 0,
+        })
+        return next
+      })
+      child.material = Array.isArray(child.material) ? clonedMaterials : clonedMaterials[0]
+    })
+    return materials
+  }, [cloned])
+
+  useFrame(() => {
+    const open = clamp(openProgressRef?.current || 0, 0, 1)
+    const opacityFactor = lerp(1, 0.2, open)
+    trackedMaterials.forEach((entry) => {
+      const { material } = entry
+      material.transparent = open > 0.01 || entry.baseTransparent
+      material.opacity = entry.baseOpacity * opacityFactor
+      material.depthWrite = open < 0.08
+
+      if (entry.baseColor && material.color) {
+        material.color.copy(entry.baseColor).lerp(xrayTint, open * 0.45)
+      }
+      if ('emissive' in material && material.emissive) {
+        material.emissive.copy(entry.baseEmissive).lerp(xrayEmissive, open * 0.65)
+        material.emissiveIntensity = entry.baseEmissiveIntensity + open * 0.34
+      }
+    })
+  })
+
+  return <primitive object={cloned} />
+}
+
+useGLTF.preload(DUNGEON_MODEL_PATH)
 
 export default function CaptureEscort({
   capture,
@@ -319,8 +377,16 @@ export default function CaptureEscort({
 
   return (
     <group>
-      <DungeonRoomModel position={dungeonPositions.w} stairDir={1} />
-      <DungeonRoomModel position={dungeonPositions.b} stairDir={-1} />
+      <DungeonRoomModel
+        position={dungeonPositions.w}
+        stairDir={1}
+        openProgressRef={whiteDoorProgress}
+      />
+      <DungeonRoomModel
+        position={dungeonPositions.b}
+        stairDir={-1}
+        openProgressRef={blackDoorProgress}
+      />
       <DungeonEntrance position={dungeonPositions.w} openProgressRef={whiteDoorProgress} stairDir={1} />
       <DungeonEntrance position={dungeonPositions.b} openProgressRef={blackDoorProgress} stairDir={-1} />
       <group ref={whiteGuardRef}>

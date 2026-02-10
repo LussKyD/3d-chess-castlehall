@@ -2,6 +2,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import * as THREE from 'three'
 import Board from './Board'
 import Character from './Character'
 import CaptureEscort from './CaptureEscort'
@@ -210,19 +211,26 @@ function Door({ position, rotation = [0, 0, 0], timeRef }) {
   )
 }
 
-function HallFloor({ openProgressRef, paused, forceOpen }) {
+function HallFloor({ openProgressRef, paused }) {
   const materialRef = useRef()
+  const baseColor = useMemo(() => new THREE.Color('#efd99d'), [])
+  const xrayColor = useMemo(() => new THREE.Color('#8ca0d8'), [])
+  const xrayEmissive = useMemo(() => new THREE.Color('#4f63a0'), [])
 
   useFrame(() => {
     if (paused || !materialRef.current) return
     const progress = openProgressRef?.current
       ? Math.max(openProgressRef.current.w || 0, openProgressRef.current.b || 0)
       : 0
-    const blended = Math.max(progress, forceOpen ? 1 : 0)
-    materialRef.current.opacity = lerp(1, 0, blended)
-    materialRef.current.transparent = true
-    materialRef.current.depthWrite = blended < 0.1
-    materialRef.current.depthTest = blended < 0.1
+    const blended = clamp(progress, 0, 1)
+    const material = materialRef.current
+    material.opacity = lerp(1, 0.2, blended)
+    material.transparent = blended > 0.001
+    material.depthWrite = blended < 0.08
+    material.depthTest = true
+    material.color.copy(baseColor).lerp(xrayColor, blended * 0.85)
+    material.emissive.copy(xrayEmissive)
+    material.emissiveIntensity = blended * 0.35
   })
 
   return (
@@ -231,6 +239,8 @@ function HallFloor({ openProgressRef, paused, forceOpen }) {
       <meshStandardMaterial
         ref={materialRef}
         color="#efd99d"
+        emissive="#000000"
+        emissiveIntensity={0}
         metalness={0.7}
         roughness={0.35}
         transparent
@@ -510,7 +520,6 @@ export default function CastleHall() {
           <HallFloor
             openProgressRef={dungeonOpenRef}
             paused={paused}
-            forceOpen={Boolean(activeCapture)}
           />
 
           {/* Golden walls */}
@@ -616,14 +625,14 @@ export default function CastleHall() {
           capture={activeCapture}
           onComplete={() => setActiveCapture(null)}
           dungeonPositions={DUNGEON_POSITIONS}
-        paused={paused}
+          paused={paused}
           openProgressRef={dungeonOpenRef}
         />
-      <Board
-        disabled={!introDone || paused || quit || Boolean(activeCapture)}
-        onCapture={handleCapture}
-        resetToken={resetToken}
-      />
+        <Board
+          disabled={!introDone || paused || quit || Boolean(activeCapture)}
+          onCapture={handleCapture}
+          resetToken={resetToken}
+        />
 
         <OrbitControls
           enablePan={!quit}
