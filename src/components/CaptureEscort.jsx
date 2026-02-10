@@ -2,7 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import Character from './Character'
 import Piece from './Piece'
+import Model from './models/Model'
 import * as THREE from 'three'
+import {
+  STAIR_CONFIG,
+  STAIR_DEPTH,
+  PRISONER_OFFSET,
+  DUNGEON_MODEL_PATH,
+} from '../config/dungeon'
 
 const APPROACH_TIME = 0.6
 const GRAB_TIME = 0.25
@@ -13,16 +20,6 @@ const TO_CELL_TIME = 0.2
 const THROW_TIME = 0.35
 const RETURN_STEP_TIME = 0.06
 const RETURN_HOME_TIME = 0.35
-
-const STAIR_CONFIG = {
-  count: 12,
-  startY: -0.15,
-  stepY: -0.23,
-  startZ: 0.6,
-  stepZ: 0.6,
-}
-const STAIR_DEPTH = STAIR_CONFIG.startZ + (STAIR_CONFIG.count - 1) * STAIR_CONFIG.stepZ
-const PRISONER_OFFSET = [0, 0.4, 0.2]
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
@@ -120,8 +117,6 @@ function buildSequence({ capture, dungeonPositions, homePositions }) {
 function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7a5b13' }) {
   const leftRef = useRef()
   const rightRef = useRef()
-  const floorMaterial = useRef()
-  const cellMaterial = useRef()
   const lightRef = useRef()
   const cellOffset = stairDir * STAIR_DEPTH
 
@@ -130,17 +125,6 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
     const angle = open * Math.PI * 0.5
     if (leftRef.current) leftRef.current.rotation.x = -angle
     if (rightRef.current) rightRef.current.rotation.x = angle
-    if (floorMaterial.current) {
-      floorMaterial.current.opacity = lerp(1, 0.02, open)
-      floorMaterial.current.depthWrite = open < 0.2
-      floorMaterial.current.depthTest = open < 0.2
-    }
-    if (cellMaterial.current) {
-      cellMaterial.current.opacity = lerp(1, 0.15, open)
-      cellMaterial.current.transparent = true
-      cellMaterial.current.emissive = new THREE.Color('#2b2f3a')
-      cellMaterial.current.emissiveIntensity = open * 0.45
-    }
     if (lightRef.current) {
       lightRef.current.intensity = open * 1.1
     }
@@ -148,56 +132,10 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
 
   return (
     <group position={position}>
-      <mesh receiveShadow position={[0, -0.05, 0]}>
-        <boxGeometry args={[4, 0.12, 4]} />
-        <meshStandardMaterial
-          ref={floorMaterial}
-          color="#3d2b1f"
-          metalness={0.2}
-          roughness={0.7}
-          transparent
-          opacity={1}
-          polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
-        />
+      <mesh receiveShadow position={[0, 0.02, 0]}>
+        <boxGeometry args={[3.6, 0.08, 3.6]} />
+        <meshStandardMaterial color="#6b5a32" metalness={0.4} roughness={0.5} />
       </mesh>
-      <group>
-        <mesh position={[0, -2.2, cellOffset]}>
-          <boxGeometry args={[3.6, 3.2, 3.6]} />
-          <meshStandardMaterial
-            ref={cellMaterial}
-            color="#141216"
-            metalness={0.1}
-            roughness={0.9}
-            transparent
-            opacity={1}
-          />
-        </mesh>
-        {[-1, 1].map((x) =>
-          [-1, 1].map((z) => (
-            <mesh key={`bar-${x}-${z}`} position={[x * 1.4, -2, cellOffset + z * 1.4]} castShadow>
-              <boxGeometry args={[0.12, 2.6, 0.12]} />
-              <meshStandardMaterial color="#3b2a1a" metalness={0.6} roughness={0.4} />
-            </mesh>
-          ))
-        )}
-      </group>
-      {Array.from({ length: STAIR_CONFIG.count }).map((_, index) => {
-        const stepHeight = STAIR_CONFIG.startY + index * STAIR_CONFIG.stepY
-        const stepDepth = STAIR_CONFIG.startZ + index * STAIR_CONFIG.stepZ
-        return (
-          <mesh
-            key={`step-${index}`}
-            position={[0, stepHeight, stairDir * stepDepth]}
-            castShadow
-            receiveShadow
-          >
-            <boxGeometry args={[2.2, 0.2, 0.7]} />
-            <meshStandardMaterial color="#5a4a3b" metalness={0.18} roughness={0.75} />
-          </mesh>
-        )
-      })}
       <pointLight
         ref={lightRef}
         position={[0, -1.5, cellOffset]}
@@ -216,6 +154,15 @@ function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7
           <meshStandardMaterial color={accent} metalness={0.6} roughness={0.5} />
         </mesh>
       </group>
+    </group>
+  )
+}
+
+function DungeonRoomModel({ position, stairDir = 1 }) {
+  const rotation = stairDir === 1 ? [0, 0, 0] : [0, Math.PI, 0]
+  return (
+    <group position={position} rotation={rotation}>
+      <Model url={DUNGEON_MODEL_PATH} />
     </group>
   )
 }
@@ -341,6 +288,8 @@ export default function CaptureEscort({
 
   return (
     <group>
+      <DungeonRoomModel position={dungeonPositions.w} stairDir={1} />
+      <DungeonRoomModel position={dungeonPositions.b} stairDir={-1} />
       <DungeonEntrance position={dungeonPositions.w} openProgressRef={whiteDoorProgress} stairDir={1} />
       <DungeonEntrance position={dungeonPositions.b} openProgressRef={blackDoorProgress} stairDir={-1} />
       <group ref={whiteGuardRef}>

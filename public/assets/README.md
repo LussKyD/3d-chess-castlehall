@@ -8,6 +8,7 @@ Recommended structure:
 - assets/models/rook.glb
 - assets/models/knight.glb
 - assets/models/bishop.glb
+- assets/models/dungeon_room.gltf
 
 Optional HDRI example name:
 - assets/castle_hall_HDRI.hdr
