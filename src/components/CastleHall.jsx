@@ -513,9 +513,9 @@ export default function CastleHall() {
         <Board disabled={!introDone} onCapture={handleCapture} />
 
         <OrbitControls
-          enablePan={introDone}
-          enableZoom={introDone}
-          enableRotate={introDone}
+          enablePan={introDone && !activeCapture}
+          enableZoom={introDone && !activeCapture}
+          enableRotate={introDone && !activeCapture}
           minDistance={8}
           maxDistance={160}
           maxPolarAngle={Math.PI / 2.03}

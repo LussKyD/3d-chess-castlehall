@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import Character from './Character'
 import Piece from './Piece'
+import * as THREE from 'three'
 
 const APPROACH_TIME = 0.6
 const ESCORT_TIME = 1.2
 const DROP_TIME = 0.9
 const RETURN_TIME = 1.1
 const TOTAL_TIME = APPROACH_TIME + ESCORT_TIME + DROP_TIME + RETURN_TIME
+const STAIR_DEPTH = 3
+const CAMERA_BLEND = 0.08
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
@@ -25,7 +28,7 @@ function smoothstep(t) {
   return t * t * (3 - 2 * t)
 }
 
-function DungeonEntrance({ position, openProgressRef, accent = '#7a5b13' }) {
+function DungeonEntrance({ position, openProgressRef, stairDir = 1, accent = '#7a5b13' }) {
   const leftRef = useRef()
   const rightRef = useRef()
   const floorMaterial = useRef()
@@ -38,15 +41,15 @@ function DungeonEntrance({ position, openProgressRef, accent = '#7a5b13' }) {
     if (leftRef.current) leftRef.current.rotation.x = -angle
     if (rightRef.current) rightRef.current.rotation.x = angle
     if (floorMaterial.current) {
-      floorMaterial.current.opacity = lerp(1, 0.12, open)
-      floorMaterial.current.depthWrite = open < 0.5
+      floorMaterial.current.opacity = lerp(1, 0.05, open)
+      floorMaterial.current.depthWrite = open < 0.35
     }
     if (cellMaterial.current) {
-      cellMaterial.current.opacity = lerp(1, 0.35, open)
+      cellMaterial.current.opacity = lerp(1, 0.2, open)
       cellMaterial.current.transparent = true
     }
     if (lightRef.current) {
-      lightRef.current.intensity = open * 0.6
+      lightRef.current.intensity = open * 0.7
     }
   })
 
@@ -84,6 +87,21 @@ function DungeonEntrance({ position, openProgressRef, accent = '#7a5b13' }) {
           ))
         )}
       </group>
+      {Array.from({ length: 5 }).map((_, index) => {
+        const stepHeight = -0.25 - index * 0.28
+        const stepDepth = 0.6 + index * 0.3
+        return (
+          <mesh
+            key={`step-${index}`}
+            position={[0, stepHeight, stairDir * stepDepth]}
+            castShadow
+            receiveShadow
+          >
+            <boxGeometry args={[1.8, 0.18, 0.6]} />
+            <meshStandardMaterial color="#403229" metalness={0.15} roughness={0.8} />
+          </mesh>
+        )
+      })}
       <pointLight ref={lightRef} position={[0, -1.5, 0]} intensity={0} color="#b39ddb" />
       <group ref={leftRef} position={[-1.3, 0.05, 0]}>
         <mesh position={[0.65, 0, 0]} castShadow>
@@ -106,10 +124,12 @@ export default function CaptureEscort({
   onComplete,
   dungeonPositions = { w: [-10, 0, 0], b: [10, 0, 0] },
 }) {
+  const { camera } = useThree()
   const whiteGuardRef = useRef()
   const blackGuardRef = useRef()
   const pieceRef = useRef()
   const startTime = useRef(null)
+  const cameraMemory = useRef(null)
   const whiteDoorProgress = useRef(0)
   const blackDoorProgress = useRef(0)
 
@@ -126,6 +146,39 @@ export default function CaptureEscort({
   }, [capture])
 
   useFrame(({ clock }) => {
+    const hasCapture = Boolean(capture)
+    if (hasCapture && camera) {
+      if (!cameraMemory.current) {
+        const direction = new THREE.Vector3()
+        camera.getWorldDirection(direction)
+        cameraMemory.current = {
+          pos: camera.position.clone(),
+          target: camera.position.clone().add(direction.multiplyScalar(10)),
+        }
+      }
+      const side = capture.capturingColor || 'w'
+      const stairDir = side === 'w' ? 1 : -1
+      const dungeonPosition = dungeonPositions[side]
+      const viewTarget = new THREE.Vector3(
+        dungeonPosition[0],
+        -1.1,
+        dungeonPosition[2] + stairDir * 1.8
+      )
+      const viewPos = new THREE.Vector3(
+        dungeonPosition[0] + stairDir * 3.5,
+        18,
+        dungeonPosition[2] + stairDir * 6
+      )
+      camera.position.lerp(viewPos, CAMERA_BLEND)
+      camera.lookAt(viewTarget)
+    } else if (cameraMemory.current && camera) {
+      camera.position.lerp(cameraMemory.current.pos, CAMERA_BLEND)
+      camera.lookAt(cameraMemory.current.target)
+      if (camera.position.distanceTo(cameraMemory.current.pos) < 0.2) {
+        cameraMemory.current = null
+      }
+    }
+
     const guards = {
       w: whiteGuardRef.current,
       b: blackGuardRef.current,
@@ -150,10 +203,12 @@ export default function CaptureEscort({
     const elapsed = clock.elapsedTime - startTime.current
     const t = Math.min(elapsed, TOTAL_TIME)
     const side = capture.capturingColor || 'w'
+    const stairDir = side === 'w' ? 1 : -1
     const dungeonPosition = dungeonPositions[side]
     const homePos = homePositions[side]
     const pieceStart = capture.position
     const startPos = [capture.position[0], 0, capture.position[2]]
+    const stairOffset = stairDir * STAIR_DEPTH
 
     let guardPos = homePos
     let guardYOffset = 0
@@ -174,16 +229,21 @@ export default function CaptureEscort({
     } else if (t <= APPROACH_TIME + ESCORT_TIME + DROP_TIME) {
       const dropT = (t - APPROACH_TIME - ESCORT_TIME) / DROP_TIME
       const p = smoothstep(dropT)
-      guardPos = dungeonPosition
+      guardPos = [dungeonPosition[0], dungeonPosition[1], dungeonPosition[2] + stairOffset]
       guardYOffset = lerp(0, -0.8, p)
-      piecePos = [dungeonPosition[0], lerp(0.4, -2.2, p), dungeonPosition[2]]
+      piecePos = [
+        dungeonPosition[0],
+        lerp(0.4, -2.2, p),
+        dungeonPosition[2] + stairOffset,
+      ]
       openProgress = 1
     } else {
       const returnT = (t - APPROACH_TIME - ESCORT_TIME - DROP_TIME) / RETURN_TIME
       const p = smoothstep(returnT)
-      guardPos = lerpVec(dungeonPosition, homePos, p)
+      const returnStart = [dungeonPosition[0], dungeonPosition[1], dungeonPosition[2] + stairOffset]
+      guardPos = lerpVec(returnStart, homePos, p)
       guardYOffset = lerp(-0.8, 0, p)
-      piecePos = [dungeonPosition[0], -2.2, dungeonPosition[2]]
+      piecePos = [dungeonPosition[0], -2.2, dungeonPosition[2] + stairOffset]
       openProgress = 1 - p
     }
 
@@ -209,8 +269,8 @@ export default function CaptureEscort({
 
   return (
     <group>
-      <DungeonEntrance position={dungeonPositions.w} openProgressRef={whiteDoorProgress} />
-      <DungeonEntrance position={dungeonPositions.b} openProgressRef={blackDoorProgress} />
+      <DungeonEntrance position={dungeonPositions.w} openProgressRef={whiteDoorProgress} stairDir={1} />
+      <DungeonEntrance position={dungeonPositions.b} openProgressRef={blackDoorProgress} stairDir={-1} />
       <group ref={whiteGuardRef}>
         <Character role="guard" />
       </group>
