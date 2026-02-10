@@ -1,3 +1,5 @@
+import { assetUrl } from './assetPaths.js'
+
 export const STAIR_CONFIG = {
   count: 12,
   startY: -0.15,
@@ -10,7 +12,7 @@ export const STAIR_DEPTH = STAIR_CONFIG.startZ + (STAIR_CONFIG.count - 1) * STAI
 
 export const PRISONER_OFFSET = [0, 0.4, 0.2]
 
-export const DUNGEON_MODEL_PATH = '/assets/models/dungeon_room.gltf'
+export const DUNGEON_MODEL_PATH = assetUrl('assets/models/dungeon_room.gltf')
 
 export const DUNGEON_MODEL_CONFIG = {
   width: 6,
@@ -27,3 +29,6 @@ export const DUNGEON_MODEL_CONFIG = {
     offset: STAIR_DEPTH + 1.4,
   },
 }
+
+export const CELL_BASE_Y =
+  STAIR_CONFIG.startY + (STAIR_CONFIG.count - 1) * STAIR_CONFIG.stepY - 0.8

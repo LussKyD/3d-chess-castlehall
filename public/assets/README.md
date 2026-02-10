@@ -1,13 +1,13 @@
 Place HDRI (.hdr) or GLTF assets here.
 
 Recommended structure:
-- assets/models/king.glb (also used for royal king)
-- assets/models/queen.glb (also used for royal queen)
-- assets/models/guard.glb
-- assets/models/pawn.glb
-- assets/models/rook.glb
-- assets/models/knight.glb
-- assets/models/bishop.glb
+- assets/models/king.gltf (also used for royal king)
+- assets/models/queen.gltf (also used for royal queen)
+- assets/models/guard.gltf
+- assets/models/pawn.gltf
+- assets/models/rook.gltf
+- assets/models/knight.gltf
+- assets/models/bishop.gltf
 - assets/models/dungeon_room.gltf
 
 Optional HDRI example name:

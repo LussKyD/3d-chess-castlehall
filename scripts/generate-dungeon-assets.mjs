@@ -6,15 +6,17 @@ import {
   Group,
   Mesh,
   BoxGeometry,
+  CylinderGeometry,
+  ConeGeometry,
+  SphereGeometry,
+  TorusGeometry,
   MeshStandardMaterial,
   Color,
 } from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import {
   STAIR_CONFIG,
-  STAIR_DEPTH,
   DUNGEON_MODEL_CONFIG,
-  DUNGEON_MODEL_PATH,
 } from '../src/config/dungeon.js'
 
 if (typeof globalThis.FileReader === 'undefined') {
@@ -56,12 +58,23 @@ if (typeof globalThis.FileReader === 'undefined') {
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const outPath = path.join(
-  __dirname,
-  '..',
-  'public',
-  DUNGEON_MODEL_PATH.replace(/^\/+/, '')
-)
+const outDir = path.join(__dirname, '..', 'public', 'assets', 'models')
+
+async function exportScene(scene, filename) {
+  const exporter = new GLTFExporter()
+  const gltf = await new Promise((resolve, reject) => {
+    exporter.parse(
+      scene,
+      (result) => resolve(result),
+      (err) => reject(err),
+      { binary: false }
+    )
+  })
+
+  await mkdir(outDir, { recursive: true })
+  const outPath = path.join(outDir, filename)
+  await writeFile(outPath, JSON.stringify(gltf, null, 2))
+}
 
 async function exportDungeon() {
   const scene = new Scene()
@@ -144,21 +157,133 @@ async function exportDungeon() {
   scene.add(group)
   scene.updateMatrixWorld(true)
 
-  const exporter = new GLTFExporter()
-  const gltf = await new Promise((resolve, reject) => {
-    exporter.parse(
-      scene,
-      (result) => resolve(result),
-      (err) => reject(err),
-      { binary: false }
-    )
-  })
-
-  await mkdir(path.dirname(outPath), { recursive: true })
-  await writeFile(outPath, JSON.stringify(gltf, null, 2))
+  await exportScene(scene, 'dungeon_room.gltf')
 }
 
-exportDungeon().catch((err) => {
+function createPieceScene(buildFn, name) {
+  const scene = new Scene()
+  const group = new Group()
+  buildFn(group)
+  group.name = name
+  scene.add(group)
+  scene.updateMatrixWorld(true)
+  return scene
+}
+
+function buildPawn(group) {
+  const base = new Mesh(new CylinderGeometry(0.3, 0.35, 0.2, 24), new MeshStandardMaterial())
+  base.position.set(0, 0.1, 0)
+  group.add(base)
+  const body = new Mesh(new CylinderGeometry(0.22, 0.28, 0.35, 24), new MeshStandardMaterial())
+  body.position.set(0, 0.35, 0)
+  group.add(body)
+  const head = new Mesh(new SphereGeometry(0.2, 24, 24), new MeshStandardMaterial())
+  head.position.set(0, 0.65, 0)
+  group.add(head)
+}
+
+function buildRook(group) {
+  const base = new Mesh(new CylinderGeometry(0.34, 0.38, 0.2, 24), new MeshStandardMaterial())
+  base.position.set(0, 0.1, 0)
+  group.add(base)
+  const body = new Mesh(new BoxGeometry(0.55, 0.5, 0.55), new MeshStandardMaterial())
+  body.position.set(0, 0.45, 0)
+  group.add(body)
+  const top = new Mesh(new BoxGeometry(0.6, 0.2, 0.6), new MeshStandardMaterial())
+  top.position.set(0, 0.8, 0)
+  group.add(top)
+}
+
+function buildKnight(group) {
+  const base = new Mesh(new CylinderGeometry(0.32, 0.36, 0.2, 24), new MeshStandardMaterial())
+  base.position.set(0, 0.1, 0)
+  group.add(base)
+  const body = new Mesh(new CylinderGeometry(0.26, 0.3, 0.45, 24), new MeshStandardMaterial())
+  body.position.set(0, 0.4, 0)
+  group.add(body)
+  const head = new Mesh(new BoxGeometry(0.35, 0.35, 0.25), new MeshStandardMaterial())
+  head.position.set(0.05, 0.75, 0)
+  head.rotation.set(0, 0.3, 0)
+  group.add(head)
+  const snout = new Mesh(new ConeGeometry(0.12, 0.25, 16), new MeshStandardMaterial())
+  snout.position.set(0.22, 0.78, 0)
+  snout.rotation.set(0, 0, Math.PI / 2)
+  group.add(snout)
+}
+
+function buildBishop(group) {
+  const base = new Mesh(new CylinderGeometry(0.32, 0.36, 0.2, 24), new MeshStandardMaterial())
+  base.position.set(0, 0.1, 0)
+  group.add(base)
+  const body = new Mesh(new ConeGeometry(0.35, 0.7, 24), new MeshStandardMaterial())
+  body.position.set(0, 0.55, 0)
+  group.add(body)
+  const head = new Mesh(new SphereGeometry(0.2, 24, 24), new MeshStandardMaterial())
+  head.position.set(0, 0.95, 0)
+  group.add(head)
+}
+
+function buildQueen(group) {
+  const base = new Mesh(new CylinderGeometry(0.34, 0.4, 0.2, 24), new MeshStandardMaterial())
+  base.position.set(0, 0.1, 0)
+  group.add(base)
+  const body = new Mesh(new CylinderGeometry(0.22, 0.32, 0.7, 24), new MeshStandardMaterial())
+  body.position.set(0, 0.55, 0)
+  group.add(body)
+  const crown = new Mesh(new TorusGeometry(0.22, 0.05, 12, 24), new MeshStandardMaterial())
+  crown.position.set(0, 0.95, 0)
+  group.add(crown)
+  const head = new Mesh(new SphereGeometry(0.16, 24, 24), new MeshStandardMaterial())
+  head.position.set(0, 1.1, 0)
+  group.add(head)
+}
+
+function buildKing(group) {
+  const base = new Mesh(new CylinderGeometry(0.34, 0.4, 0.2, 24), new MeshStandardMaterial())
+  base.position.set(0, 0.1, 0)
+  group.add(base)
+  const body = new Mesh(new CylinderGeometry(0.24, 0.34, 0.8, 24), new MeshStandardMaterial())
+  body.position.set(0, 0.6, 0)
+  group.add(body)
+  const crown = new Mesh(new BoxGeometry(0.35, 0.08, 0.35), new MeshStandardMaterial())
+  crown.position.set(0, 1.05, 0)
+  group.add(crown)
+  const cross = new Mesh(new BoxGeometry(0.08, 0.22, 0.08), new MeshStandardMaterial())
+  cross.position.set(0, 1.2, 0)
+  group.add(cross)
+}
+
+function buildGuard(group) {
+  const base = new Mesh(new CylinderGeometry(0.28, 0.32, 0.25, 20), new MeshStandardMaterial())
+  base.position.set(0, 0.12, 0)
+  group.add(base)
+  const body = new Mesh(new CylinderGeometry(0.26, 0.32, 0.7, 20), new MeshStandardMaterial())
+  body.position.set(0, 0.55, 0)
+  group.add(body)
+  const chest = new Mesh(new BoxGeometry(0.45, 0.35, 0.25), new MeshStandardMaterial())
+  chest.position.set(0, 0.8, 0)
+  group.add(chest)
+  const head = new Mesh(new SphereGeometry(0.2, 20, 20), new MeshStandardMaterial())
+  head.position.set(0, 1.05, 0)
+  group.add(head)
+}
+
+async function exportPieces() {
+  await exportScene(createPieceScene(buildPawn, 'Pawn'), 'pawn.gltf')
+  await exportScene(createPieceScene(buildRook, 'Rook'), 'rook.gltf')
+  await exportScene(createPieceScene(buildKnight, 'Knight'), 'knight.gltf')
+  await exportScene(createPieceScene(buildBishop, 'Bishop'), 'bishop.gltf')
+  await exportScene(createPieceScene(buildQueen, 'Queen'), 'queen.gltf')
+  await exportScene(createPieceScene(buildKing, 'King'), 'king.gltf')
+  await exportScene(createPieceScene(buildGuard, 'Guard'), 'guard.gltf')
+}
+
+async function run() {
+  await exportDungeon()
+  await exportPieces()
+}
+
+run().catch((err) => {
   console.error(err)
   process.exit(1)
 })

@@ -9,6 +9,8 @@ import {
   STAIR_DEPTH,
   PRISONER_OFFSET,
   DUNGEON_MODEL_PATH,
+  DUNGEON_MODEL_CONFIG,
+  CELL_BASE_Y,
 } from '../config/dungeon'
 
 const APPROACH_TIME = 0.6
@@ -79,10 +81,10 @@ function buildSequence({ capture, dungeonPositions, homePositions }) {
     current = down
   })
 
-  const cellStand = [dungeon[0], current[1], dungeon[2] + stairDir * (STAIR_DEPTH + 0.8)]
+  const cellStand = [dungeon[0], current[1], dungeon[2] + stairDir * DUNGEON_MODEL_CONFIG.cell.offset]
   segments.push(createMoveSegment(current, cellStand, TO_CELL_TIME, true, 1))
 
-  const cellPrisoner = [cellStand[0], current[1] - 0.8, cellStand[2] + stairDir * 0.4]
+  const cellPrisoner = [cellStand[0], CELL_BASE_Y, cellStand[2] + stairDir * 0.4]
   segments.push(createThrowSegment(cellStand, cellPrisoner, THROW_TIME, 1))
 
   let returnPos = cellStand
@@ -175,6 +177,7 @@ export default function CaptureEscort({
   openProgressRef,
 }) {
   const [prisonerPiece, setPrisonerPiece] = useState(null)
+  const [capturedPieces, setCapturedPieces] = useState({ w: [], b: [] })
   const whiteGuardRef = useRef()
   const blackGuardRef = useRef()
   const pieceRef = useRef()
@@ -195,6 +198,23 @@ export default function CaptureEscort({
     setPrisonerPiece(capture.piece)
     sequenceRef.current = buildSequence({ capture, dungeonPositions, homePositions })
   }, [capture, dungeonPositions, homePositions])
+
+  function getCellSlotPosition(side, index) {
+    const stairDir = side === 'w' ? 1 : -1
+    const base = dungeonPositions[side]
+    const cellZ = base[2] + stairDir * DUNGEON_MODEL_CONFIG.cell.offset
+    const columns = 3
+    const rows = 2
+    const layerSize = columns * rows
+    const layer = Math.floor(index / layerSize)
+    const slot = index % layerSize
+    const col = slot % columns
+    const row = Math.floor(slot / columns)
+    const x = (col - 1) * 0.5
+    const z = (row - 0.5) * 0.6
+    const y = layer * 0.25
+    return [base[0] + x, CELL_BASE_Y + y, cellZ + z]
+  }
 
   useFrame((_, delta) => {
     if (paused) return
@@ -267,17 +287,28 @@ export default function CaptureEscort({
       blackDoorProgress.current = sequence.open
     }
 
-    if (pieceRef.current && prisonerPiece) {
-      pieceRef.current.visible = true
-      pieceRef.current.position.set(prisonerPos[0], prisonerPos[1], prisonerPos[2])
-    }
-
     if (progress >= 1) {
       sequence.time = 0
       if (segment.type === 'throw') {
         sequence.prisonerFixed = segment.to
+        if (!sequence.prisonerStored && prisonerPiece) {
+          const side = sequence.side
+          setCapturedPieces((prev) => {
+            const next = [...prev[side], prisonerPiece]
+            return { ...prev, [side]: next }
+          })
+          sequence.prisonerStored = true
+          setPrisonerPiece(null)
+        }
       }
       sequence.index += 1
+    }
+
+    if (pieceRef.current && prisonerPiece) {
+      pieceRef.current.visible = true
+      pieceRef.current.position.set(prisonerPos[0], prisonerPos[1], prisonerPos[2])
+    } else if (pieceRef.current) {
+      pieceRef.current.visible = false
     }
 
     if (openProgressRef?.current) {
@@ -298,6 +329,20 @@ export default function CaptureEscort({
       <group ref={blackGuardRef}>
         <Character role="guard" />
       </group>
+      {capturedPieces.w.map((piece, index) => (
+        <Piece
+          key={`cell-w-${index}`}
+          piece={piece}
+          position={getCellSlotPosition('w', index)}
+        />
+      ))}
+      {capturedPieces.b.map((piece, index) => (
+        <Piece
+          key={`cell-b-${index}`}
+          piece={piece}
+          position={getCellSlotPosition('b', index)}
+        />
+      ))}
       {prisonerPiece && (
         <group ref={pieceRef}>
           <Piece piece={prisonerPiece} position={[0, 0, 0]} />

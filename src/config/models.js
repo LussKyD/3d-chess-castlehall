@@ -1,15 +1,17 @@
+import { assetUrl } from './assetPaths.js'
+
 export const MODEL_PATHS = {
   pieces: {
-    p: '/assets/models/pawn.glb',
-    r: '/assets/models/rook.glb',
-    n: '/assets/models/knight.glb',
-    b: '/assets/models/bishop.glb',
-    q: '/assets/models/queen.glb',
-    k: '/assets/models/king.glb',
+    p: assetUrl('assets/models/pawn.gltf'),
+    r: assetUrl('assets/models/rook.gltf'),
+    n: assetUrl('assets/models/knight.gltf'),
+    b: assetUrl('assets/models/bishop.gltf'),
+    q: assetUrl('assets/models/queen.gltf'),
+    k: assetUrl('assets/models/king.gltf'),
   },
-  guard: '/assets/models/guard.glb',
-  king: '/assets/models/king.glb',
-  queen: '/assets/models/queen.glb',
+  guard: assetUrl('assets/models/guard.gltf'),
+  king: assetUrl('assets/models/king.gltf'),
+  queen: assetUrl('assets/models/queen.gltf'),
 }
 
 export const MODEL_SETTINGS = {
