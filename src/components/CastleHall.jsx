@@ -611,6 +611,7 @@ export default function CastleHall() {
           resetToken={resetToken}
         />
 
+        {/* Camera is always free-flow: never follows the guard during capture escort */}
         <OrbitControls
           enablePan={!quit}
           enableZoom={!quit}

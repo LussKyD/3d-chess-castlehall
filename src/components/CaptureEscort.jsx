@@ -595,6 +595,7 @@ export default function CaptureEscort({
     return [base[0] + x, CELL_BASE_Y + y, cellZ + z]
   }
 
+  // Camera is never moved here: user keeps free-flow control during escort.
   useFrame((state, delta) => {
     if (paused) return
 
