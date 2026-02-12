@@ -2,6 +2,8 @@
 
 A runnable starter project (Vite + React + react-three-fiber) for the 3D Chess — Castle Hall game.
 
+**Primary way to run:** use **local dev** (`npm run dev`). GitHub Pages is only used as a test environment; if the live site fails, run the app locally to verify your changes.
+
 ## What you get
 - A Vite React app with a 3D scene (board + kings & queens that watch the camera)
 - Placeholder piece geometry and colors matching the requested palette (gold, black, purple, white)

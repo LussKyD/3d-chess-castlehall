@@ -23,14 +23,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Fix index.html script to point at built bundle
+      - name: Fix index.html for GitHub Pages (test env)
         run: |
           REPO_NAME="${{ github.event.repository.name }}"
-          JSFILE=$(ls dist/assets/index-*.js 2>/dev/null | head -1)
-          if [ -z "$JSFILE" ]; then echo "No built JS in dist/assets"; exit 1; fi
-          BASENAME=$(basename "$JSFILE")
-          sed -i.bak "s|src=\"[^\"]*main\\.jsx\"|src=\"/${REPO_NAME}/assets/${BASENAME}\"|" dist/index.html
-          echo "Updated script src to /${REPO_NAME}/assets/${BASENAME}"
+          test -f dist/assets/index.js || (echo "Build did not produce dist/assets/index.js"; ls -la dist/assets/ 2>/dev/null; exit 1)
+          sed -i.bak "s|src=\"[^\"]*main\\.jsx\"|src=\"/${REPO_NAME}/assets/index.js\"|" dist/index.html
+          grep -o 'src="[^"]*"' dist/index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

@@ -18,6 +18,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
+      output: {
+        entryFileNames: 'assets/index.js',
+        assetFileNames: 'assets/[name][extname]',
+      },
     },
   },
 })
