@@ -456,9 +456,12 @@ export default function CastleHall() {
     setPaused(false)
   }
 
+  const buildLabel = 'v4'
+
   return (
     <div className="app">
       <div className="ui-overlay" style={overlayStyle}>
+        <span style={{ color: '#ffd86b', fontSize: 11, fontWeight: 600, alignSelf: 'center' }}>{buildLabel}</span>
         {!introDone && (
           <button type="button" style={buttonStyle} onClick={() => setIntroSkipped(true)}>
             Skip intro
