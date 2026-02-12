@@ -1,5 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // When running in GitHub Actions the env var GITHUB_REPOSITORY is available
 // in the form "owner/repo". We extract the repo name and use it as base.
@@ -11,4 +15,9 @@ const base = process.env.GITHUB_REPOSITORY
 export default defineConfig({
   plugins: [react()],
   base,
+  build: {
+    rollupOptions: {
+      input: path.resolve(__dirname, 'index.html'),
+    },
+  },
 })
