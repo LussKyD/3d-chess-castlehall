@@ -20,6 +20,32 @@ const DUNGEON_POSITIONS = {
   b: [KING_THRONE_POS[0], 0, -DUNGEON_OFFSET_Z],
 }
 
+const FIXED_CAMERA_TARGET = [0, 0, 0]
+
+/** Locks orbit target so camera never follows the guard; user keeps full pan/zoom/rotate. */
+function LockedOrbitControls({ disabled, ...props }) {
+  const controlsRef = useRef(null)
+  useFrame(() => {
+    if (controlsRef.current?.target) {
+      controlsRef.current.target.set(FIXED_CAMERA_TARGET[0], FIXED_CAMERA_TARGET[1], FIXED_CAMERA_TARGET[2])
+    }
+  })
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      makeDefault
+      target={FIXED_CAMERA_TARGET}
+      enablePan={!disabled}
+      enableZoom={!disabled}
+      enableRotate={!disabled}
+      minDistance={8}
+      maxDistance={160}
+      maxPolarAngle={Math.PI / 2.03}
+      {...props}
+    />
+  )
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
 }
@@ -611,17 +637,8 @@ export default function CastleHall() {
           resetToken={resetToken}
         />
 
-        {/* Camera is always free-flow (like entry): zoom/pan/rotate anytime; never follows guard */}
-        <OrbitControls
-          makeDefault
-          target={[0, 0, 0]}
-          enablePan={!quit}
-          enableZoom={!quit}
-          enableRotate={!quit}
-          minDistance={8}
-          maxDistance={160}
-          maxPolarAngle={Math.PI / 2.03}
-        />
+        {/* Camera target locked every frame so it never follows the guard; free pan/zoom/rotate */}
+        <LockedOrbitControls disabled={quit} />
       </Canvas>
     </div>
   )

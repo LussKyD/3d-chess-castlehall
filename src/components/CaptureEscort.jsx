@@ -198,20 +198,21 @@ function StairTopDoors({ position, openProgressRef, stairDir = 1 }) {
 
   return (
     <group position={position}>
-      <group position={[0, 1.6, centerZ - stairDir * 0.8]}>
+      {/* Frame and doors: large and visible at top of stairs */}
+      <group position={[0, 2.2, centerZ - stairDir * 1.2]}>
         <mesh receiveShadow position={[0, 0, 0]}>
-          <boxGeometry args={[4.4, 3.2, 0.15]} />
-          <meshStandardMaterial color="#6a5729" metalness={0.6} roughness={0.5} />
+          <boxGeometry args={[6, 4.5, 0.2]} />
+          <meshStandardMaterial color="#5a4a28" metalness={0.5} roughness={0.5} />
         </mesh>
-        <group ref={leftPanelRef} position={[-1.05, 0, 0.08]}>
-          <mesh castShadow position={[0.95, 0, 0]}>
-            <boxGeometry args={[1.9, 3, 0.12]} />
+        <group ref={leftPanelRef} position={[-1.45, 0, 0.12]}>
+          <mesh castShadow position={[1.4, 0, 0]}>
+            <boxGeometry args={[2.8, 4.2, 0.15]} />
             <meshStandardMaterial color="#8a6b2f" metalness={0.78} roughness={0.35} />
           </mesh>
         </group>
-        <group ref={rightPanelRef} position={[1.05, 0, 0.08]}>
-          <mesh castShadow position={[-0.95, 0, 0]}>
-            <boxGeometry args={[1.9, 3, 0.12]} />
+        <group ref={rightPanelRef} position={[1.45, 0, 0.12]}>
+          <mesh castShadow position={[-1.4, 0, 0]}>
+            <boxGeometry args={[2.8, 4.2, 0.15]} />
             <meshStandardMaterial color="#8a6b2f" metalness={0.78} roughness={0.35} />
           </mesh>
         </group>
@@ -564,8 +565,8 @@ export default function CaptureEscort({
   // Extra guard always stationed at the dungeon doors (never moves, never escorts).
   const doorGuardPositions = useMemo(
     () => ({
-      w: [dungeonPositions.w[0] + 1.8, 0, dungeonPositions.w[2] + DUNGEON_VIEWPORT.forwardOffset + 0.2],
-      b: [dungeonPositions.b[0] - 1.8, 0, dungeonPositions.b[2] - DUNGEON_VIEWPORT.forwardOffset - 0.2],
+      w: [dungeonPositions.w[0] + 3.2, 0, dungeonPositions.w[2] + DUNGEON_VIEWPORT.forwardOffset + 1.5],
+      b: [dungeonPositions.b[0] - 3.2, 0, dungeonPositions.b[2] - DUNGEON_VIEWPORT.forwardOffset - 1.5],
     }),
     [dungeonPositions]
   )
@@ -660,6 +661,18 @@ export default function CaptureEscort({
       b: blackDoorGuardRef.current,
     }
 
+    // Door guards: always position when refs exist (so they show even before escorts/sentinels mount).
+    if (doorGuards.w) {
+      doorGuards.w.visible = true
+      doorGuards.w.position.set(doorGuardPositions.w[0], doorGuardPositions.w[1], doorGuardPositions.w[2])
+      doorGuards.w.lookAt(0, 1, 0)
+    }
+    if (doorGuards.b) {
+      doorGuards.b.visible = true
+      doorGuards.b.position.set(doorGuardPositions.b[0], doorGuardPositions.b[1], doorGuardPositions.b[2])
+      doorGuards.b.lookAt(0, 1, 0)
+    }
+
     if (!escorts.w || !escorts.b || !sentinels.w || !sentinels.b) return
 
     // Escort guards: when no sequence, both stay stationed at their post beside the board.
@@ -676,18 +689,6 @@ export default function CaptureEscort({
     sentinels.b.position.set(sentinelPositions.b[0], sentinelPositions.b[1], sentinelPositions.b[2])
     sentinels.w.lookAt(0, 1, 0)
     sentinels.b.lookAt(0, 1, 0)
-
-    // Door guards: always at dungeon doors, never move.
-    if (doorGuards.w) {
-      doorGuards.w.visible = true
-      doorGuards.w.position.set(doorGuardPositions.w[0], doorGuardPositions.w[1], doorGuardPositions.w[2])
-      doorGuards.w.lookAt(0, 1, 0)
-    }
-    if (doorGuards.b) {
-      doorGuards.b.visible = true
-      doorGuards.b.position.set(doorGuardPositions.b[0], doorGuardPositions.b[1], doorGuardPositions.b[2])
-      doorGuards.b.lookAt(0, 1, 0)
-    }
 
     whiteDoorProgress.current = lerp(whiteDoorProgress.current, 0, 0.24)
     blackDoorProgress.current = lerp(blackDoorProgress.current, 0, 0.24)
