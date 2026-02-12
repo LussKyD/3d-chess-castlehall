@@ -183,6 +183,43 @@ function buildSequence({ capture, dungeonPositions, homePositions }) {
   }
 }
 
+/* Double doors at hall level, above the stairwell (guard opens these before going down) */
+function StairTopDoors({ position, openProgressRef, stairDir = 1 }) {
+  const leftPanelRef = useRef()
+  const rightPanelRef = useRef()
+  const centerZ = stairDir * DUNGEON_VIEWPORT.forwardOffset
+
+  useFrame(() => {
+    const open = clamp(openProgressRef?.current || 0, 0, 1)
+    const angle = open * Math.PI * 0.5
+    if (leftPanelRef.current) leftPanelRef.current.rotation.y = angle
+    if (rightPanelRef.current) rightPanelRef.current.rotation.y = -angle
+  })
+
+  return (
+    <group position={position}>
+      <group position={[0, 1.6, centerZ - stairDir * 0.8]}>
+        <mesh receiveShadow position={[0, 0, 0]}>
+          <boxGeometry args={[4.4, 3.2, 0.15]} />
+          <meshStandardMaterial color="#6a5729" metalness={0.6} roughness={0.5} />
+        </mesh>
+        <group ref={leftPanelRef} position={[-1.05, 0, 0.08]}>
+          <mesh castShadow position={[0.95, 0, 0]}>
+            <boxGeometry args={[1.9, 3, 0.12]} />
+            <meshStandardMaterial color="#8a6b2f" metalness={0.78} roughness={0.35} />
+          </mesh>
+        </group>
+        <group ref={rightPanelRef} position={[1.05, 0, 0.08]}>
+          <mesh castShadow position={[-0.95, 0, 0]}>
+            <boxGeometry args={[1.9, 3, 0.12]} />
+            <meshStandardMaterial color="#8a6b2f" metalness={0.78} roughness={0.35} />
+          </mesh>
+        </group>
+      </group>
+    </group>
+  )
+}
+
 function DungeonEntrance({ position, openProgressRef, stairDir = 1 }) {
   const leftDoorRef = useRef()
   const rightDoorRef = useRef()
@@ -495,6 +532,8 @@ export default function CaptureEscort({
   const blackEscortRef = useRef()
   const whiteSentinelRef = useRef()
   const blackSentinelRef = useRef()
+  const whiteDoorGuardRef = useRef()
+  const blackDoorGuardRef = useRef()
   const pieceRef = useRef()
   const sequenceRef = useRef(null)
   const whiteDoorProgress = useRef(0)
@@ -518,6 +557,15 @@ export default function CaptureEscort({
       // Dedicated sentinels stand by the hatch doors and never escort.
       w: [dungeonPositions.w[0] - 2.2, 0, dungeonPositions.w[2] + DUNGEON_VIEWPORT.forwardOffset - 0.3],
       b: [dungeonPositions.b[0] + 2.2, 0, dungeonPositions.b[2] - DUNGEON_VIEWPORT.forwardOffset + 0.3],
+    }),
+    [dungeonPositions]
+  )
+
+  // Extra guard always stationed at the dungeon doors (never moves, never escorts).
+  const doorGuardPositions = useMemo(
+    () => ({
+      w: [dungeonPositions.w[0] + 1.8, 0, dungeonPositions.w[2] + DUNGEON_VIEWPORT.forwardOffset + 0.2],
+      b: [dungeonPositions.b[0] - 1.8, 0, dungeonPositions.b[2] - DUNGEON_VIEWPORT.forwardOffset - 0.2],
     }),
     [dungeonPositions]
   )
@@ -607,21 +655,39 @@ export default function CaptureEscort({
       w: whiteSentinelRef.current,
       b: blackSentinelRef.current,
     }
+    const doorGuards = {
+      w: whiteDoorGuardRef.current,
+      b: blackDoorGuardRef.current,
+    }
 
     if (!escorts.w || !escorts.b || !sentinels.w || !sentinels.b) return
 
+    // Escort guards: when no sequence, both stay stationed at their post beside the board.
     escorts.w.visible = true
     escorts.b.visible = true
     escorts.w.position.set(homePositions.w[0], homePositions.w[1], homePositions.w[2])
     escorts.b.position.set(homePositions.b[0], homePositions.b[1], homePositions.b[2])
     escorts.w.lookAt(0, 1, 0)
     escorts.b.lookAt(0, 1, 0)
+
     sentinels.w.visible = true
     sentinels.b.visible = true
     sentinels.w.position.set(sentinelPositions.w[0], sentinelPositions.w[1], sentinelPositions.w[2])
     sentinels.b.position.set(sentinelPositions.b[0], sentinelPositions.b[1], sentinelPositions.b[2])
     sentinels.w.lookAt(0, 1, 0)
     sentinels.b.lookAt(0, 1, 0)
+
+    // Door guards: always at dungeon doors, never move.
+    if (doorGuards.w) {
+      doorGuards.w.visible = true
+      doorGuards.w.position.set(doorGuardPositions.w[0], doorGuardPositions.w[1], doorGuardPositions.w[2])
+      doorGuards.w.lookAt(0, 1, 0)
+    }
+    if (doorGuards.b) {
+      doorGuards.b.visible = true
+      doorGuards.b.position.set(doorGuardPositions.b[0], doorGuardPositions.b[1], doorGuardPositions.b[2])
+      doorGuards.b.lookAt(0, 1, 0)
+    }
 
     whiteDoorProgress.current = lerp(whiteDoorProgress.current, 0, 0.24)
     blackDoorProgress.current = lerp(blackDoorProgress.current, 0, 0.24)
@@ -771,6 +837,16 @@ export default function CaptureEscort({
         openProgressRef={blackDoorProgress}
         stairDir={-1}
       />
+      <StairTopDoors
+        position={dungeonPositions.w}
+        openProgressRef={whiteDoorProgress}
+        stairDir={1}
+      />
+      <StairTopDoors
+        position={dungeonPositions.b}
+        openProgressRef={blackDoorProgress}
+        stairDir={-1}
+      />
       <group ref={whiteEscortRef}>
         <Character role="guard" tint="#5d6b84" />
       </group>
@@ -782,6 +858,12 @@ export default function CaptureEscort({
       </group>
       <group ref={blackSentinelRef}>
         <Character role="guard" tint="#d9be78" />
+      </group>
+      <group ref={whiteDoorGuardRef}>
+        <Character role="guard" tint="#7a8ba3" />
+      </group>
+      <group ref={blackDoorGuardRef}>
+        <Character role="guard" tint="#7a8ba3" />
       </group>
       {capturedPieces.w.map((piece, index) => (
         <Piece
